@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Monde Ouvert - Temple des Brumes</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section id="character-screen" class="panel">
+      <h1>Temple des Brumes</h1>
+      <p class="subtitle">Choisis ton personnage pour commencer l'aventure.</p>
+
+      <div class="cards">
+        <article class="card" data-class="barbare">
+          <h2>Barbare</h2>
+          <p>Puissant au corps à corps.</p>
+          <ul>
+            <li>Force : <strong>100</strong></li>
+            <li>Mage : <strong>50</strong></li>
+          </ul>
+          <button class="select-btn" data-class="barbare">Choisir Barbare</button>
+        </article>
+
+        <article class="card" data-class="sorcier">
+          <h2>Sorcier</h2>
+          <p>Maîtrise de la magie ancienne.</p>
+          <ul>
+            <li>Mage : <strong>100</strong></li>
+            <li>Force : <strong>50</strong></li>
+          </ul>
+          <button class="select-btn" data-class="sorcier">Choisir Sorcier</button>
+        </article>
+      </div>
+    </section>
+
+    <section id="game-screen" class="hidden">
+      <header class="hud">
+        <div id="player-info"></div>
+        <div class="legend">Déplacement: ZQSD / WASD / Flèches</div>
+      </header>
+      <canvas id="game" width="960" height="540"></canvas>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
