@@ -37,10 +37,27 @@
 
     <section id="game-screen" class="hidden">
       <header class="hud">
-        <div id="player-info"></div>
-        <div class="legend">Déplacement: ZQSD / WASD / Flèches</div>
+        <div class="hud-left">
+          <div id="player-info"></div>
+          <div class="health-wrap" aria-label="Barre de vie">
+            <span class="health-label">Vie</span>
+            <div class="health-bar">
+              <div id="health-fill"></div>
+            </div>
+            <span id="health-text">100 / 100</span>
+          </div>
+        </div>
+        <div class="legend">Déplacement: ZQSD / WASD / Flèches | Interaction: E | Inventaire: B</div>
       </header>
       <canvas id="game" width="960" height="540"></canvas>
+
+      <aside id="inventory-panel" class="inventory hidden" aria-label="Inventaire">
+        <div class="inventory-header">
+          <h3 id="inventory-title">Inventaire</h3>
+          <span class="inventory-tip">Touche B pour fermer</span>
+        </div>
+        <div id="inventory-grid" class="inventory-grid"></div>
+      </aside>
     </section>
   </main>
 
