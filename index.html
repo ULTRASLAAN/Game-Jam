@@ -39,13 +39,37 @@
       <header class="hud">
         <div class="hud-left">
           <div id="player-info"></div>
-          <div class="health-wrap" aria-label="Barre de vie">
-            <span class="health-label">Vie</span>
-            <div class="health-bar">
-              <div id="health-fill"></div>
+          <div class="survival-bars">
+            <div class="survival-bar-wrap" aria-label="Barre de vie">
+              <span class="survival-label">❤️ Vie</span>
+              <div class="survival-bar health-bar">
+                <div id="health-fill"></div>
+              </div>
+              <span id="health-text">100</span>
             </div>
-            <span id="health-text">100 / 100</span>
+            <div class="survival-bar-wrap" aria-label="Barre de faim">
+              <span class="survival-label">🍖 Faim</span>
+              <div class="survival-bar hunger-bar">
+                <div id="hunger-fill"></div>
+              </div>
+              <span id="hunger-text">100</span>
+            </div>
+            <div class="survival-bar-wrap" aria-label="Barre de soif">
+              <span class="survival-label">💧 Soif</span>
+              <div class="survival-bar thirst-bar">
+                <div id="thirst-fill"></div>
+              </div>
+              <span id="thirst-text">100</span>
+            </div>
+            <div class="survival-bar-wrap" aria-label="Température">
+              <span class="survival-label">🌡️ Temp</span>
+              <div class="survival-bar temp-bar">
+                <div id="temp-fill"></div>
+              </div>
+              <span id="temp-text">20°C</span>
+            </div>
           </div>
+          <div id="day-night-indicator">☀️ Jour 1 - 06:00</div>
         </div>
         <div class="legend">Déplacement: ZQSD / WASD / Flèches | Interaction: E | Inventaire: B</div>
       </header>

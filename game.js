@@ -12,6 +12,14 @@ const inventoryGrid = document.getElementById('inventory-grid');
 const buttons = document.querySelectorAll('.select-btn');
 const cards = document.querySelectorAll('.card');
 
+const hungerFill = document.getElementById('hunger-fill');
+const hungerText = document.getElementById('hunger-text');
+const thirstFill = document.getElementById('thirst-fill');
+const thirstText = document.getElementById('thirst-text');
+const tempFill = document.getElementById('temp-fill');
+const tempText = document.getElementById('temp-text');
+const dayNightIndicator = document.getElementById('day-night-indicator');
+
 const TILE = 48;
 const WORLD_COLS = 72;
 const WORLD_ROWS = 32;
@@ -479,6 +487,30 @@ const zones = [
 const templeGroundPattern = createTempleGroundPattern();
 const forestGroundPattern = createForestGroundPattern();
 const mountainGroundPattern = createMountainGroundPattern();
+const finalZonePattern = createFinalZonePattern();
+
+// Particules maléfiques pour la zone du boss
+const evilParticles = [];
+for (let i = 0; i < 60; i++) {
+  evilParticles.push({
+    x: finalZone.x + Math.random() * finalZone.w,
+    y: Math.random() * WORLD_HEIGHT,
+    size: 2 + Math.random() * 4,
+    speed: 0.3 + Math.random() * 0.8,
+    alpha: 0.3 + Math.random() * 0.5,
+    color: Math.random() > 0.5 ? '#ef4444' : '#a855f7'
+  });
+}
+
+// Flammes pour la zone du boss
+const evilFlames = [];
+for (let i = 0; i < 12; i++) {
+  evilFlames.push({
+    x: finalZone.x + 80 + i * 120,
+    baseY: WORLD_HEIGHT - 60,
+    phase: Math.random() * Math.PI * 2
+  });
+}
 
 let gameStarted = false;
 let selectedClass = null;
@@ -487,6 +519,123 @@ let hintMessage = 'Objectif: explore les cerisiers';
 let inventoryOpen = false;
 let inventoryItems = [];
 let mountainHealLastTick = 0;
+let isGameOver = false;
+let gameOverReason = '';
+
+// === SYSTÈME DE SURVIE ===
+const survival = {
+  hunger: 100,
+  maxHunger: 100,
+  thirst: 100,
+  maxThirst: 100,
+  temperature: 20, // en °C, optimal entre 15-25
+  minTemp: -10,
+  maxTemp: 45,
+  
+  // Taux de diminution (par seconde)
+  hungerRate: 0.8,
+  thirstRate: 1.2,
+  
+  // Dégâts de survie
+  starvingDamage: 2,
+  dehydrationDamage: 3,
+  freezingDamage: 1.5,
+  overheatDamage: 1,
+  
+  lastUpdate: 0,
+  
+  // Cycle jour/nuit
+  dayTime: 360, // 6h00 du matin (en minutes, 0-1440)
+  daySpeed: 2, // minutes de jeu par seconde réelle
+  day: 1,
+  
+  // État
+  isNight: false,
+  nearCampfire: false
+};
+
+// Ressources collectables dans le monde
+const survivalResources = {
+  berries: [], // Baies pour la faim
+  waterSources: [], // Sources d'eau
+  wood: [], // Bois
+  stone: [], // Pierre
+  campfires: [] // Feux de camp placés par le joueur
+};
+
+// Générer les ressources
+function generateSurvivalResources() {
+  // Baies dans la forêt
+  for (let i = 0; i < 15; i++) {
+    survivalResources.berries.push({
+      x: 16 * TILE + 50 + Math.random() * (15 * TILE),
+      y: 200 + Math.random() * (WORLD_HEIGHT - 400),
+      collected: false,
+      respawnTime: 0,
+      hungerRestore: 15
+    });
+  }
+  
+  // Baies dans les montagnes
+  for (let i = 0; i < 8; i++) {
+    survivalResources.berries.push({
+      x: 32 * TILE + 50 + Math.random() * (15 * TILE),
+      y: 500 + Math.random() * (WORLD_HEIGHT - 700),
+      collected: false,
+      respawnTime: 0,
+      hungerRestore: 20
+    });
+  }
+  
+  // Sources d'eau (près de la rivière)
+  survivalResources.waterSources = [
+    { x: 200, y: 1200, radius: 60, thirstRestore: 40 },
+    { x: 600, y: 1280, radius: 50, thirstRestore: 35 },
+    { x: 1100, y: 1280, radius: 55, thirstRestore: 40 },
+    { x: 1800, y: 1280, radius: 50, thirstRestore: 35 },
+    { x: 2400, y: 1280, radius: 45, thirstRestore: 30 }
+  ];
+  
+  // Bois (arbres abattables)
+  for (let i = 0; i < 12; i++) {
+    survivalResources.wood.push({
+      x: 16 * TILE + 80 + Math.random() * (14 * TILE),
+      y: 150 + Math.random() * (WORLD_HEIGHT - 350),
+      collected: false,
+      respawnTime: 0
+    });
+  }
+  
+  // Pierre dans les montagnes
+  for (let i = 0; i < 10; i++) {
+    survivalResources.stone.push({
+      x: 32 * TILE + 60 + Math.random() * (15 * TILE),
+      y: 500 + Math.random() * (WORLD_HEIGHT - 600),
+      collected: false,
+      respawnTime: 0
+    });
+  }
+}
+
+// Recettes de crafting
+const craftingRecipes = [
+  { name: 'Feu de camp', ingredients: ['Bois x3', 'Pierre x2'], result: 'campfire' },
+  { name: 'Bandage', ingredients: ['Herbes x2'], result: 'bandage' },
+  { name: 'Torche', ingredients: ['Bois x1', 'Tissu x1'], result: 'torch' },
+  { name: 'Viande cuite', ingredients: ['Viande crue x1', 'Feu'], result: 'cookedMeat' }
+];
+
+// Inventaire de ressources de survie
+const survivalInventory = {
+  wood: 0,
+  stone: 0,
+  berries: 0,
+  rawMeat: 0,
+  cookedMeat: 0,
+  herbs: 0,
+  cloth: 0,
+  water: 0
+};
 
 const player = {
   x: 8 * TILE,
@@ -553,7 +702,23 @@ window.addEventListener('keydown', (event) => {
   }
 
   if (key === 'e') {
-    handleInteract();
+    if (!tryCollectResource()) {
+      handleInteract();
+    }
+    event.preventDefault();
+    return;
+  }
+
+  if (key === 'f') {
+    tryEatFood();
+    event.preventDefault();
+    return;
+  }
+
+  if (key === 'c') {
+    tryPlaceCampfire();
+    event.preventDefault();
+    return;
   }
 
   if (key in keys) {
@@ -615,6 +780,7 @@ function startGame(choice) {
   buildInventory(choice);
   closeInventory();
   updateHealthHud();
+  initSurvival();
   gameStarted = true;
   requestAnimationFrame(gameLoop);
 }
@@ -657,6 +823,8 @@ function update() {
   updateMountainHealing();
   updateMiniBosses();
   updateFinalBoss();
+  updateSurvival();
+  checkEnemyCollision();
 
   currentZone = findCurrentZone();
 
@@ -735,9 +903,12 @@ function draw() {
   drawFinalBarrier();
   drawFinalBoss();
   drawBarrier();
+  drawSurvivalResources();
   drawPlayer();
+  drawNightOverlay();
   drawMiniMap();
   drawHint();
+  drawSurvivalInventoryHUD();
 }
 
 function drawMountainHealingCherry() {
@@ -1462,6 +1633,106 @@ function drawZones() {
       ridgeGlow.addColorStop(1, 'rgba(15, 23, 42, 0.1)');
       ctx.fillStyle = ridgeGlow;
       ctx.fillRect(x, y, zone.w, zone.h);
+    } else if (zone.name === 'Sanctuaire Final') {
+      // Fond dégradé rouge sang vers noir
+      const evilSky = ctx.createLinearGradient(x, y, x, y + zone.h);
+      evilSky.addColorStop(0, '#0a0a0a');
+      evilSky.addColorStop(0.3, '#1a0a0a');
+      evilSky.addColorStop(0.6, '#2d0f0f');
+      evilSky.addColorStop(1, '#1a0505');
+      ctx.fillStyle = evilSky;
+      ctx.fillRect(x, y, zone.w, zone.h);
+
+      // Pattern de sol maléfique
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = finalZonePattern || '#1a0505';
+      ctx.fillRect(0, 0, zone.w, zone.h);
+      ctx.restore();
+
+      // Brume rouge animée
+      const time = Date.now() * 0.001;
+      ctx.fillStyle = `rgba(127, 29, 29, ${0.15 + Math.sin(time) * 0.05})`;
+      ctx.fillRect(x, y + zone.h * 0.7, zone.w, zone.h * 0.3);
+
+      // Éclairs aléatoires
+      if (Math.random() < 0.008) {
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.4)';
+        ctx.fillRect(x, y, zone.w, zone.h);
+      }
+
+      // Effet de vignette sombre
+      const vignette = ctx.createRadialGradient(
+        x + zone.w / 2, y + zone.h / 2, zone.h * 0.2,
+        x + zone.w / 2, y + zone.h / 2, zone.h * 0.8
+      );
+      vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      vignette.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
+      ctx.fillStyle = vignette;
+      ctx.fillRect(x, y, zone.w, zone.h);
+
+      // Dessiner les particules maléfiques
+      evilParticles.forEach(p => {
+        p.y -= p.speed;
+        if (p.y < 0) {
+          p.y = WORLD_HEIGHT;
+          p.x = finalZone.x + Math.random() * finalZone.w;
+        }
+        const px = p.x - camera.x;
+        const py = p.y - camera.y;
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.alpha * (0.5 + Math.sin(time * 2 + p.x) * 0.5);
+        ctx.beginPath();
+        ctx.arc(px, py, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      // Dessiner les flammes au sol
+      evilFlames.forEach(flame => {
+        const fx = flame.x - camera.x;
+        const fy = flame.baseY - camera.y;
+        const flicker = Math.sin(time * 8 + flame.phase);
+        const flameHeight = 40 + flicker * 15;
+
+        // Flamme principale (rouge/orange)
+        const flameGrad = ctx.createLinearGradient(fx, fy, fx, fy - flameHeight);
+        flameGrad.addColorStop(0, 'rgba(220, 38, 38, 0.9)');
+        flameGrad.addColorStop(0.4, 'rgba(234, 88, 12, 0.7)');
+        flameGrad.addColorStop(0.7, 'rgba(251, 146, 60, 0.5)');
+        flameGrad.addColorStop(1, 'rgba(254, 215, 170, 0)');
+        ctx.fillStyle = flameGrad;
+        ctx.beginPath();
+        ctx.moveTo(fx - 12, fy);
+        ctx.quadraticCurveTo(fx - 8 + flicker * 3, fy - flameHeight * 0.5, fx, fy - flameHeight);
+        ctx.quadraticCurveTo(fx + 8 - flicker * 3, fy - flameHeight * 0.5, fx + 12, fy);
+        ctx.closePath();
+        ctx.fill();
+
+        // Lueur au sol
+        ctx.fillStyle = 'rgba(220, 38, 38, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(fx, fy + 5, 20, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Crânes décoratifs sur les côtés
+      for (let i = 0; i < 4; i++) {
+        const skullX = x + 30 + i * 350;
+        const skullY = y + 100 + (i % 2) * 600;
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.15)';
+        ctx.beginPath();
+        ctx.arc(skullX, skullY, 25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+        ctx.beginPath();
+        ctx.arc(skullX - 8, skullY - 5, 6, 0, Math.PI * 2);
+        ctx.arc(skullX + 8, skullY - 5, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(skullX - 10, skullY + 10, 20, 8);
+      }
+
     } else {
       ctx.fillStyle = zone.color;
       ctx.fillRect(x, y, zone.w, zone.h);
@@ -1510,6 +1781,65 @@ function createMountainGroundPattern() {
     const x = (i * 17) % tile.width;
     const y = (i * 41) % tile.height;
     patternCtx.fillRect(x, y, 2, 2);
+  }
+
+  return ctx.createPattern(tile, 'repeat');
+}
+
+function createFinalZonePattern() {
+  const tile = document.createElement('canvas');
+  tile.width = 128;
+  tile.height = 128;
+  const patternCtx = tile.getContext('2d');
+
+  // Fond sombre
+  patternCtx.fillStyle = '#1a0505';
+  patternCtx.fillRect(0, 0, tile.width, tile.height);
+
+  // Fissures rougeoyantes
+  patternCtx.strokeStyle = 'rgba(220, 38, 38, 0.4)';
+  patternCtx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    const startX = (i * 37) % tile.width;
+    const startY = (i * 23) % tile.height;
+    patternCtx.beginPath();
+    patternCtx.moveTo(startX, startY);
+    patternCtx.lineTo(startX + 20 + (i % 3) * 10, startY + 15 + (i % 4) * 8);
+    patternCtx.lineTo(startX + 35, startY + 40);
+    patternCtx.stroke();
+  }
+
+  // Pierres sombres
+  patternCtx.fillStyle = '#2d1f1f';
+  for (let i = 0; i < 20; i++) {
+    const x = (i * 29) % tile.width;
+    const y = (i * 41) % tile.height;
+    patternCtx.fillRect(x, y, 8 + (i % 4), 6 + (i % 3));
+  }
+
+  // Éclats de lave
+  patternCtx.fillStyle = 'rgba(234, 88, 12, 0.5)';
+  for (let i = 0; i < 15; i++) {
+    const x = (i * 17 + 5) % tile.width;
+    const y = (i * 31 + 7) % tile.height;
+    patternCtx.beginPath();
+    patternCtx.arc(x, y, 2, 0, Math.PI * 2);
+    patternCtx.fill();
+  }
+
+  // Symboles occultes
+  patternCtx.strokeStyle = 'rgba(168, 85, 247, 0.25)';
+  patternCtx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const cx = 32 + (i % 2) * 64;
+    const cy = 32 + Math.floor(i / 2) * 64;
+    patternCtx.beginPath();
+    patternCtx.arc(cx, cy, 12, 0, Math.PI * 2);
+    patternCtx.moveTo(cx, cy - 15);
+    patternCtx.lineTo(cx, cy + 15);
+    patternCtx.moveTo(cx - 15, cy);
+    patternCtx.lineTo(cx + 15, cy);
+    patternCtx.stroke();
   }
 
   return ctx.createPattern(tile, 'repeat');
@@ -2820,9 +3150,527 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+// === FONCTIONS DE SURVIE ===
+
+function initSurvival() {
+  generateSurvivalResources();
+  survival.lastUpdate = Date.now();
+  survival.hunger = 100;
+  survival.thirst = 100;
+  survival.temperature = 20;
+  survival.dayTime = 360;
+  survival.day = 1;
+  survivalInventory.wood = 2;
+  survivalInventory.stone = 1;
+  survivalInventory.berries = 3;
+}
+
+function updateSurvival() {
+  const now = Date.now();
+  const deltaSeconds = (now - survival.lastUpdate) / 1000;
+  survival.lastUpdate = now;
+  
+  // Mise à jour du cycle jour/nuit
+  survival.dayTime += survival.daySpeed * deltaSeconds;
+  if (survival.dayTime >= 1440) {
+    survival.dayTime -= 1440;
+    survival.day++;
+  }
+  
+  // Déterminer si c'est la nuit (20h - 6h)
+  survival.isNight = survival.dayTime < 360 || survival.dayTime >= 1200;
+  
+  // Calculer la température ambiante selon la zone et l'heure
+  let baseTemp = 20;
+  if (currentZone === 'Montagnes Brisées') baseTemp = 8;
+  else if (currentZone === 'Sanctuaire Final') baseTemp = 35;
+  else if (currentZone === 'Forêt Ancienne') baseTemp = 18;
+  
+  // La nuit fait baisser la température
+  if (survival.isNight) {
+    baseTemp -= 12;
+  }
+  
+  // Près d'un feu de camp = +15°C
+  survival.nearCampfire = isNearCampfire();
+  if (survival.nearCampfire) {
+    baseTemp += 15;
+  }
+  
+  // Transition douce de la température
+  survival.temperature += (baseTemp - survival.temperature) * 0.02;
+  survival.temperature = clamp(survival.temperature, survival.minTemp, survival.maxTemp);
+  
+  // Diminution de la faim et de la soif
+  survival.hunger -= survival.hungerRate * deltaSeconds;
+  survival.thirst -= survival.thirstRate * deltaSeconds;
+  survival.hunger = clamp(survival.hunger, 0, survival.maxHunger);
+  survival.thirst = clamp(survival.thirst, 0, survival.maxThirst);
+  
+  // Dégâts de survie
+  if (survival.hunger <= 0) {
+    player.health -= survival.starvingDamage * deltaSeconds;
+  }
+  if (survival.thirst <= 0) {
+    player.health -= survival.dehydrationDamage * deltaSeconds;
+  }
+  if (survival.temperature < 5) {
+    player.health -= survival.freezingDamage * deltaSeconds * (1 - survival.temperature / 5);
+  }
+  if (survival.temperature > 35) {
+    player.health -= survival.overheatDamage * deltaSeconds * ((survival.temperature - 35) / 10);
+  }
+  
+  player.health = clamp(player.health, 0, player.maxHealth);
+  
+  // Respawn des ressources
+  const respawnDelay = 30000; // 30 secondes
+  survivalResources.berries.forEach(berry => {
+    if (berry.collected && now > berry.respawnTime) {
+      berry.collected = false;
+    }
+  });
+  survivalResources.wood.forEach(wood => {
+    if (wood.collected && now > wood.respawnTime) {
+      wood.collected = false;
+    }
+  });
+  survivalResources.stone.forEach(stone => {
+    if (stone.collected && now > stone.respawnTime) {
+      stone.collected = false;
+    }
+  });
+  
+  // Mise à jour du HUD
+  updateSurvivalHUD();
+}
+
+function updateSurvivalHUD() {
+  // Faim
+  const hungerPercent = (survival.hunger / survival.maxHunger) * 100;
+  if (hungerFill) hungerFill.style.width = `${hungerPercent}%`;
+  if (hungerText) hungerText.textContent = Math.round(survival.hunger);
+  
+  // Soif
+  const thirstPercent = (survival.thirst / survival.maxThirst) * 100;
+  if (thirstFill) thirstFill.style.width = `${thirstPercent}%`;
+  if (thirstText) thirstText.textContent = Math.round(survival.thirst);
+  
+  // Température
+  const tempPercent = ((survival.temperature - survival.minTemp) / (survival.maxTemp - survival.minTemp)) * 100;
+  if (tempFill) tempFill.style.width = `${tempPercent}%`;
+  if (tempText) tempText.textContent = `${Math.round(survival.temperature)}°C`;
+  
+  // Jour/Nuit
+  const hours = Math.floor(survival.dayTime / 60);
+  const minutes = Math.floor(survival.dayTime % 60);
+  const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  const icon = survival.isNight ? '🌙' : '☀️';
+  if (dayNightIndicator) {
+    dayNightIndicator.textContent = `${icon} Jour ${survival.day} - ${timeStr}`;
+    dayNightIndicator.style.color = survival.isNight ? '#94a3b8' : '#fbbf24';
+  }
+}
+
+function isNearCampfire() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  
+  return survivalResources.campfires.some(fire => {
+    const dist = Math.hypot(centerX - fire.x, centerY - fire.y);
+    return dist < 80;
+  });
+}
+
+function tryCollectResource() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  
+  // Collecter des baies
+  for (const berry of survivalResources.berries) {
+    if (berry.collected) continue;
+    const dist = Math.hypot(centerX - berry.x, centerY - berry.y);
+    if (dist < 40) {
+      berry.collected = true;
+      berry.respawnTime = Date.now() + 30000;
+      survivalInventory.berries++;
+      hintMessage = `Baies collectées (+1) - Total: ${survivalInventory.berries}`;
+      return true;
+    }
+  }
+  
+  // Collecter du bois
+  for (const wood of survivalResources.wood) {
+    if (wood.collected) continue;
+    const dist = Math.hypot(centerX - wood.x, centerY - wood.y);
+    if (dist < 45) {
+      wood.collected = true;
+      wood.respawnTime = Date.now() + 45000;
+      survivalInventory.wood++;
+      hintMessage = `Bois collecté (+1) - Total: ${survivalInventory.wood}`;
+      return true;
+    }
+  }
+  
+  // Collecter de la pierre
+  for (const stone of survivalResources.stone) {
+    if (stone.collected) continue;
+    const dist = Math.hypot(centerX - stone.x, centerY - stone.y);
+    if (dist < 40) {
+      stone.collected = true;
+      stone.respawnTime = Date.now() + 60000;
+      survivalInventory.stone++;
+      hintMessage = `Pierre collectée (+1) - Total: ${survivalInventory.stone}`;
+      return true;
+    }
+  }
+  
+  // Boire de l'eau
+  for (const water of survivalResources.waterSources) {
+    const dist = Math.hypot(centerX - water.x, centerY - water.y);
+    if (dist < water.radius) {
+      survival.thirst = clamp(survival.thirst + water.thirstRestore, 0, survival.maxThirst);
+      hintMessage = `Soif restaurée (+${water.thirstRestore})`;
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+function tryEatFood() {
+  if (survivalInventory.berries > 0) {
+    survivalInventory.berries--;
+    survival.hunger = clamp(survival.hunger + 15, 0, survival.maxHunger);
+    hintMessage = `Baies mangées - Faim +15`;
+    return true;
+  }
+  if (survivalInventory.cookedMeat > 0) {
+    survivalInventory.cookedMeat--;
+    survival.hunger = clamp(survival.hunger + 40, 0, survival.maxHunger);
+    hintMessage = `Viande mangée - Faim +40`;
+    return true;
+  }
+  return false;
+}
+
+function tryPlaceCampfire() {
+  if (survivalInventory.wood >= 3 && survivalInventory.stone >= 2) {
+    survivalInventory.wood -= 3;
+    survivalInventory.stone -= 2;
+    survivalResources.campfires.push({
+      x: player.x + player.width / 2,
+      y: player.y + player.height / 2 + 30,
+      createdAt: Date.now()
+    });
+    hintMessage = 'Feu de camp placé! Reste près pour te réchauffer.';
+    return true;
+  }
+  hintMessage = `Feu de camp: besoin de 3 bois (${survivalInventory.wood}) et 2 pierres (${survivalInventory.stone})`;
+  return false;
+}
+
+function drawSurvivalResources() {
+  // Dessiner les baies
+  survivalResources.berries.forEach(berry => {
+    if (berry.collected) return;
+    const x = berry.x - camera.x;
+    const y = berry.y - camera.y;
+    
+    // Buisson
+    ctx.fillStyle = '#166534';
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Baies
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(x - 4, y - 3, 4, 0, Math.PI * 2);
+    ctx.arc(x + 3, y - 2, 3.5, 0, Math.PI * 2);
+    ctx.arc(x, y + 4, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  
+  // Dessiner le bois
+  survivalResources.wood.forEach(wood => {
+    if (wood.collected) return;
+    const x = wood.x - camera.x;
+    const y = wood.y - camera.y;
+    
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(x - 15, y - 4, 30, 8);
+    ctx.fillRect(x - 12, y + 2, 24, 6);
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(x - 10, y - 2, 20, 4);
+  });
+  
+  // Dessiner la pierre
+  survivalResources.stone.forEach(stone => {
+    if (stone.collected) return;
+    const x = stone.x - camera.x;
+    const y = stone.y - camera.y;
+    
+    ctx.fillStyle = '#6b7280';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 14, 10, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#9ca3af';
+    ctx.beginPath();
+    ctx.ellipse(x - 3, y - 2, 5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  
+  // Dessiner les sources d'eau (indication)
+  survivalResources.waterSources.forEach(water => {
+    const x = water.x - camera.x;
+    const y = water.y - camera.y;
+    
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.3)';
+    ctx.beginPath();
+    ctx.arc(x, y, water.radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = '10px Arial';
+    ctx.fillText('💧 Eau', x - 15, y - water.radius - 5);
+  });
+  
+  // Dessiner les feux de camp
+  survivalResources.campfires.forEach(fire => {
+    const x = fire.x - camera.x;
+    const y = fire.y - camera.y;
+    const time = Date.now() * 0.008;
+    const flicker = Math.sin(time) * 5;
+    
+    // Zone de chaleur
+    ctx.fillStyle = 'rgba(251, 146, 60, 0.15)';
+    ctx.beginPath();
+    ctx.arc(x, y, 70, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Pierres
+    ctx.fillStyle = '#4b5563';
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(angle) * 14, y + Math.sin(angle) * 10, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Bois
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(x - 10, y - 3, 20, 6);
+    ctx.fillRect(x - 8, y + 2, 16, 5);
+    
+    // Flammes
+    const flameGrad = ctx.createLinearGradient(x, y, x, y - 30 - flicker);
+    flameGrad.addColorStop(0, '#f97316');
+    flameGrad.addColorStop(0.5, '#fbbf24');
+    flameGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+    ctx.fillStyle = flameGrad;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y);
+    ctx.quadraticCurveTo(x - 5 + flicker * 0.3, y - 15, x, y - 28 - flicker);
+    ctx.quadraticCurveTo(x + 5 - flicker * 0.3, y - 15, x + 8, y);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Étincelles
+    ctx.fillStyle = '#fef08a';
+    for (let i = 0; i < 4; i++) {
+      const sparkX = x + Math.sin(time * 2 + i) * 8;
+      const sparkY = y - 20 - (time * 3 + i * 5) % 20;
+      ctx.beginPath();
+      ctx.arc(sparkX, sparkY, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+function drawNightOverlay() {
+  if (!survival.isNight) return;
+  
+  // Calcul de l'intensité de la nuit
+  let nightIntensity = 0.5;
+  if (survival.dayTime < 360) {
+    // Entre minuit et 6h
+    nightIntensity = 0.6 - (survival.dayTime / 360) * 0.2;
+  } else {
+    // Entre 20h et minuit
+    nightIntensity = 0.4 + ((survival.dayTime - 1200) / 240) * 0.2;
+  }
+  
+  // Overlay sombre
+  ctx.fillStyle = `rgba(10, 15, 30, ${nightIntensity})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Zone éclairée autour des feux de camp
+  survivalResources.campfires.forEach(fire => {
+    const x = fire.x - camera.x;
+    const y = fire.y - camera.y;
+    
+    const lightGrad = ctx.createRadialGradient(x, y, 0, x, y, 100);
+    lightGrad.addColorStop(0, 'rgba(251, 191, 36, 0.4)');
+    lightGrad.addColorStop(0.5, 'rgba(251, 146, 60, 0.2)');
+    lightGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = lightGrad;
+    ctx.beginPath();
+    ctx.arc(x, y, 100, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  });
+  
+  // Légère lumière autour du joueur
+  const px = player.x + player.width / 2 - camera.x;
+  const py = player.y + player.height / 2 - camera.y;
+  const playerLight = ctx.createRadialGradient(px, py, 0, px, py, 60);
+  playerLight.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+  playerLight.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = playerLight;
+  ctx.beginPath();
+  ctx.arc(px, py, 60, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function checkEnemyCollision() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  
+  // Collision avec les mini-boss
+  for (const boss of miniBosses) {
+    if (boss.hp <= 0) continue;
+    
+    const bossCenterX = boss.x + boss.w / 2;
+    const bossCenterY = boss.y + boss.h / 2;
+    const dist = Math.hypot(centerX - bossCenterX, centerY - bossCenterY);
+    
+    if (dist < 35) {
+      player.health -= 0.5; // Dégâts au contact
+      // Repousser le joueur
+      const angle = Math.atan2(centerY - bossCenterY, centerX - bossCenterX);
+      player.x += Math.cos(angle) * 3;
+      player.y += Math.sin(angle) * 3;
+    }
+  }
+  
+  // Collision avec le sous-boss
+  if (miniBossSubBoss.isUnlocked && !miniBossSubBoss.isDefeated) {
+    const bossCenterX = miniBossSubBoss.x + miniBossSubBoss.w / 2;
+    const bossCenterY = miniBossSubBoss.y + miniBossSubBoss.h / 2;
+    const dist = Math.hypot(centerX - bossCenterX, centerY - bossCenterY);
+    
+    if (dist < 45) {
+      player.health -= 0.8;
+      const angle = Math.atan2(centerY - bossCenterY, centerX - bossCenterX);
+      player.x += Math.cos(angle) * 4;
+      player.y += Math.sin(angle) * 4;
+    }
+  }
+  
+  // Collision avec le boss final
+  const finalBossCenterX = finalBoss.x + finalBoss.w / 2;
+  const finalBossCenterY = finalBoss.y + finalBoss.h / 2;
+  const finalDist = Math.hypot(centerX - finalBossCenterX, centerY - finalBossCenterY);
+  
+  if (finalDist < 50 && currentZone === 'Sanctuaire Final') {
+    player.health -= 1.2;
+    const angle = Math.atan2(centerY - finalBossCenterY, centerX - finalBossCenterX);
+    player.x += Math.cos(angle) * 5;
+    player.y += Math.sin(angle) * 5;
+  }
+  
+  player.health = clamp(player.health, 0, player.maxHealth);
+}
+
+function drawSurvivalInventoryHUD() {
+  const hudX = 16;
+  const hudY = canvas.height - 60;
+  
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.8)';
+  ctx.fillRect(hudX, hudY, 300, 50);
+  ctx.strokeStyle = '#475569';
+  ctx.strokeRect(hudX, hudY, 300, 50);
+  
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '12px Arial';
+  ctx.fillText(`🪵 ${survivalInventory.wood}  🪨 ${survivalInventory.stone}  🫐 ${survivalInventory.berries}  🥩 ${survivalInventory.cookedMeat}`, hudX + 10, hudY + 20);
+  ctx.fillText('F: Manger | C: Feu de camp | E: Collecter', hudX + 10, hudY + 40);
+}
+
 function gameLoop() {
   if (!gameStarted) return;
+  
+  if (isGameOver) {
+    drawGameOver();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+  
+  // Vérifier la mort du joueur
+  if (player.health <= 0) {
+    isGameOver = true;
+    if (survival.hunger <= 0) {
+      gameOverReason = 'Tu es mort de faim...';
+    } else if (survival.thirst <= 0) {
+      gameOverReason = 'Tu es mort de soif...';
+    } else if (survival.temperature < 5) {
+      gameOverReason = 'Tu es mort de froid...';
+    } else if (survival.temperature > 35) {
+      gameOverReason = 'Tu es mort de chaleur...';
+    } else {
+      gameOverReason = 'Tu as été vaincu par les ennemis...';
+    }
+  }
+  
   update();
   draw();
   requestAnimationFrame(gameLoop);
 }
+
+function drawGameOver() {
+  // Fond sombre
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Texte GAME OVER
+  ctx.fillStyle = '#dc2626';
+  ctx.font = 'bold 72px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 60);
+  
+  // Raison de la mort
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '24px Arial';
+  ctx.fillText(gameOverReason, canvas.width / 2, canvas.height / 2 + 10);
+  
+  // Stats
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '18px Arial';
+  ctx.fillText(`Jour ${survival.day} - Tu as survécu ${survival.day - 1} jour(s)`, canvas.width / 2, canvas.height / 2 + 60);
+  
+  // Instructions pour recommencer
+  const pulse = (Math.sin(Date.now() * 0.005) + 1) / 2;
+  ctx.fillStyle = `rgba(251, 191, 36, ${0.6 + pulse * 0.4})`;
+  ctx.font = 'bold 20px Arial';
+  ctx.fillText('Appuie sur R pour recommencer', canvas.width / 2, canvas.height / 2 + 120);
+  
+  ctx.textAlign = 'left';
+}
+
+function restartGame() {
+  isGameOver = false;
+  gameOverReason = '';
+  gameStarted = false;
+  characterScreen.classList.remove('hidden');
+  gameScreen.classList.add('hidden');
+}
+
+// Écouter la touche R pour recommencer
+window.addEventListener('keydown', (event) => {
+  if (event.key.toLowerCase() === 'r' && isGameOver) {
+    restartGame();
+  }
+});
