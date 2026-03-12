@@ -291,14 +291,14 @@ const miniBosses = [
 ];
 
 const miniBossSubBoss = {
-  name: 'Sous-boss: Seigneur des Crêtes',
+  name: 'Cerbère des Crêtes',
   x: 2060,
   y: 940,
-  w: 54,
-  h: 46,
-  hp: 6,
-  maxHp: 6,
-  speed: 0.98,
+  w: 58,
+  h: 52,
+  hp: 8,
+  maxHp: 8,
+  speed: 1.3,
   dirX: 1,
   dirY: 1,
   minX: 1880,
@@ -306,8 +306,16 @@ const miniBossSubBoss = {
   minY: 820,
   maxY: 1240,
   isUnlocked: false,
-  isDefeated: false
+  isDefeated: false,
+  // Attaque de flammes
+  lastFireTime: 0,
+  fireInterval: 1500, // Crache des flammes toutes les 1.5 secondes
+  contactDamage: 2, // Dégâts au contact
+  flameDamage: 1.5 // Dégâts par flamme
 };
+
+// Projectiles de flammes du Cerbère
+const cerbereFlames = [];
 
 const mountainHealingCherryPetals = Array.from({ length: 22 }, (_, index) => ({
   startX: -96 + (index % 8) * 24 + (index % 3) * 3,
@@ -745,6 +753,24 @@ function startGame(choice) {
   player.hasStarterWeapon = false;
   player.hasStarterShield = false;
   player.hasStarterPotions = false;
+  
+  // Reset position au spawn
+  player.x = 8 * TILE;
+  player.y = WORLD_HEIGHT / 2;
+  camera.x = 0;
+  camera.y = 0;
+  
+  // Reset survie
+  survivalResources.campfires = [];
+  survivalResources.berries.forEach(b => { b.collected = false; });
+  survivalResources.wood.forEach(w => { w.collected = false; });
+  survivalResources.stone.forEach(s => { s.collected = false; });
+  survivalInventory.wood = 2;
+  survivalInventory.stone = 1;
+  survivalInventory.berries = 3;
+  survivalInventory.rawMeat = 0;
+  survivalInventory.cookedMeat = 0;
+  
   forestChests.forEach((chest) => {
     chest.isOpened = false;
   });
@@ -781,6 +807,8 @@ function startGame(choice) {
   closeInventory();
   updateHealthHud();
   initSurvival();
+  isGameOver = false;
+  gameOverReason = '';
   gameStarted = true;
   requestAnimationFrame(gameLoop);
 }
@@ -892,6 +920,7 @@ function draw() {
   drawTempleTrees();
   drawMiniBosses();
   drawSubBoss();
+  drawCerbereFlames();
   drawMountainHealingCherry();
   drawMountainBossKey();
   drawForestChests();
@@ -1072,19 +1101,95 @@ function drawMiniBosses() {
     const x = boss.x - camera.x;
     const y = boss.y - camera.y;
     const hpRatio = boss.maxHp > 0 ? boss.hp / boss.maxHp : 0;
+    const time = Date.now() * 0.003;
+    const blink = Math.sin(time * 3) > 0.95;
 
-    ctx.fillStyle = boss.color;
-    ctx.fillRect(x, y, boss.w, boss.h);
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(x + 7, y + 9, 5, 5);
-    ctx.fillRect(x + boss.w - 12, y + 9, 5, 5);
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(x + 8, y + boss.h - 10, boss.w - 16, 4);
+    // === PERSONNAGE STYLE PIXEL ART ===
+    
+    // Cheveux bouclés noirs
+    ctx.fillStyle = '#1a1a1a';
+    // Base des cheveux
+    ctx.fillRect(x + 4, y + 2, 28, 14);
+    // Boucles du haut
+    ctx.beginPath();
+    ctx.arc(x + 10, y + 4, 6, 0, Math.PI * 2);
+    ctx.arc(x + 18, y + 2, 5, 0, Math.PI * 2);
+    ctx.arc(x + 26, y + 4, 6, 0, Math.PI * 2);
+    ctx.arc(x + 6, y + 8, 4, 0, Math.PI * 2);
+    ctx.arc(x + 30, y + 8, 4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Visage (peau mate)
+    ctx.fillStyle = '#c68642';
+    ctx.fillRect(x + 6, y + 12, 24, 20);
+    
+    // Oreilles
+    ctx.fillStyle = '#b5651d';
+    ctx.fillRect(x + 2, y + 16, 5, 8);
+    ctx.fillRect(x + 29, y + 16, 5, 8);
+    
+    // Sourcils épais
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + 9, y + 15, 7, 2);
+    ctx.fillRect(x + 20, y + 15, 7, 2);
+    
+    // Yeux (mi-clos style fatigué)
+    if (!blink) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + 10, y + 18, 6, 4);
+      ctx.fillRect(x + 20, y + 18, 6, 4);
+      // Pupilles
+      ctx.fillStyle = '#3d2314';
+      ctx.fillRect(x + 12, y + 19, 3, 3);
+      ctx.fillRect(x + 22, y + 19, 3, 3);
+      // Paupières tombantes
+      ctx.fillStyle = '#c68642';
+      ctx.fillRect(x + 10, y + 17, 6, 2);
+      ctx.fillRect(x + 20, y + 17, 6, 2);
+    } else {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + 10, y + 19, 6, 1);
+      ctx.fillRect(x + 20, y + 19, 6, 1);
+    }
+    
+    // Nez
+    ctx.fillStyle = '#a0522d';
+    ctx.fillRect(x + 16, y + 21, 4, 5);
+    
+    // Barbe naissante
+    ctx.fillStyle = 'rgba(26, 26, 26, 0.3)';
+    ctx.fillRect(x + 8, y + 28, 20, 4);
+    
+    // Bouche
+    ctx.fillStyle = '#8b4513';
+    ctx.fillRect(x + 13, y + 29, 10, 2);
+    
+    // Cou
+    ctx.fillStyle = '#b5651d';
+    ctx.fillRect(x + 14, y + 32, 8, 4);
+    
+    // T-shirt jaune moutarde
+    ctx.fillStyle = '#d4a017';
+    ctx.fillRect(x + 4, y + 35, 28, 14);
+    // Col du t-shirt
+    ctx.fillStyle = '#c49000';
+    ctx.beginPath();
+    ctx.moveTo(x + 14, y + 35);
+    ctx.lineTo(x + 18, y + 39);
+    ctx.lineTo(x + 22, y + 35);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Manches
+    ctx.fillStyle = '#d4a017';
+    ctx.fillRect(x, y + 36, 6, 8);
+    ctx.fillRect(x + 30, y + 36, 6, 8);
 
+    // Barre de vie
     ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.fillRect(x, y - 12, boss.w, 5);
+    ctx.fillRect(x, y - 8, boss.w, 5);
     ctx.fillStyle = '#ef4444';
-    ctx.fillRect(x, y - 12, boss.w * hpRatio, 5);
+    ctx.fillRect(x, y - 8, boss.w * hpRatio, 5);
   });
 }
 
@@ -1096,23 +1201,175 @@ function drawSubBoss() {
   const x = miniBossSubBoss.x - camera.x;
   const y = miniBossSubBoss.y - camera.y;
   const hpRatio = miniBossSubBoss.maxHp > 0 ? miniBossSubBoss.hp / miniBossSubBoss.maxHp : 0;
+  const time = Date.now() * 0.005;
+  const breathe = Math.sin(time) * 2;
 
-  ctx.fillStyle = '#1f2937';
-  ctx.fillRect(x, y, miniBossSubBoss.w, miniBossSubBoss.h);
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillRect(x + 6, y + 6, miniBossSubBoss.w - 12, 12);
+  // === CERBÈRE À TROIS TÊTES ===
+  
+  // Corps principal (violet/gris)
+  ctx.fillStyle = '#6b5b7a';
+  ctx.fillRect(x + 8, y + 20, 38, 22);
+  
+  // Dos avec épines
+  ctx.fillStyle = '#8b7b9a';
+  ctx.fillRect(x + 12, y + 16, 30, 6);
+  
+  // Pattes arrières
+  ctx.fillStyle = '#5a4a6a';
+  ctx.fillRect(x + 8, y + 38, 8, 12);
+  ctx.fillRect(x + 18, y + 38, 8, 12);
+  
+  // Pattes avant
+  ctx.fillRect(x + 32, y + 38, 8, 12);
+  ctx.fillRect(x + 42, y + 38, 8, 12);
+  
+  // Griffes orange/feu
+  ctx.fillStyle = '#f97316';
+  ctx.fillRect(x + 8, y + 48, 8, 4);
+  ctx.fillRect(x + 18, y + 48, 8, 4);
+  ctx.fillRect(x + 32, y + 48, 8, 4);
+  ctx.fillRect(x + 42, y + 48, 8, 4);
+  
+  // Queue enflammée
+  ctx.fillStyle = '#5a4a6a';
+  ctx.beginPath();
+  ctx.moveTo(x, y + 26);
+  ctx.lineTo(x - 10, y + 20 + breathe);
+  ctx.lineTo(x - 8, y + 30);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y + 20 + breathe);
+  ctx.lineTo(x - 16, y + 16 + breathe * 1.5);
+  ctx.lineTo(x - 12, y + 24 + breathe);
+  ctx.closePath();
+  ctx.fill();
+
+  // === TÊTE CENTRALE (plus grande) ===
+  ctx.fillStyle = '#6b5b7a';
+  ctx.fillRect(x + 20, y + 4, 16, 18);
+  
+  // Museau central
+  ctx.fillStyle = '#5a4a6a';
+  ctx.fillRect(x + 22, y + 14, 12, 10);
+  
+  // Oreilles/cornes orange
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y + 6);
+  ctx.lineTo(x + 18, y - 4);
+  ctx.lineTo(x + 24, y + 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + 36, y + 6);
+  ctx.lineTo(x + 38, y - 4);
+  ctx.lineTo(x + 32, y + 4);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Yeux rouges brillants (central)
   ctx.fillStyle = '#ef4444';
-  ctx.fillRect(x + 10, y + 10, 7, 5);
-  ctx.fillRect(x + miniBossSubBoss.w - 17, y + 10, 7, 5);
+  ctx.fillRect(x + 23, y + 8, 4, 4);
+  ctx.fillRect(x + 29, y + 8, 4, 4);
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(x + 24, y + 9, 2, 2);
+  ctx.fillRect(x + 30, y + 9, 2, 2);
+  
+  // Gueule avec crocs (central)
+  ctx.fillStyle = '#1f1520';
+  ctx.fillRect(x + 24, y + 18, 8, 5);
+  ctx.fillStyle = '#f8fafc';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(x + 24 + i * 2, y + 18, 1, 3);
+    ctx.fillRect(x + 24 + i * 2, y + 21, 1, 2);
+  }
 
+  // === TÊTE GAUCHE ===
+  ctx.fillStyle = '#6b5b7a';
+  ctx.fillRect(x + 2, y + 8, 14, 14);
+  
+  // Museau gauche
+  ctx.fillStyle = '#5a4a6a';
+  ctx.fillRect(x, y + 14, 10, 8);
+  
+  // Oreille gauche
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath();
+  ctx.moveTo(x + 4, y + 10);
+  ctx.lineTo(x, y);
+  ctx.lineTo(x + 8, y + 8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Yeux (gauche)
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(x + 4, y + 12, 3, 3);
+  ctx.fillRect(x + 10, y + 12, 3, 3);
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(x + 5, y + 13, 1, 1);
+  ctx.fillRect(x + 11, y + 13, 1, 1);
+  
+  // Gueule gauche
+  ctx.fillStyle = '#1f1520';
+  ctx.fillRect(x + 2, y + 18, 6, 4);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(x + 2, y + 18, 1, 2);
+  ctx.fillRect(x + 4, y + 18, 1, 3);
+  ctx.fillRect(x + 6, y + 18, 1, 2);
+
+  // === TÊTE DROITE ===
+  ctx.fillStyle = '#6b5b7a';
+  ctx.fillRect(x + 40, y + 8, 14, 14);
+  
+  // Museau droit
+  ctx.fillStyle = '#5a4a6a';
+  ctx.fillRect(x + 46, y + 14, 10, 8);
+  
+  // Oreille droite
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath();
+  ctx.moveTo(x + 52, y + 10);
+  ctx.lineTo(x + 56, y);
+  ctx.lineTo(x + 48, y + 8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Yeux (droit)
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(x + 43, y + 12, 3, 3);
+  ctx.fillRect(x + 49, y + 12, 3, 3);
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(x + 44, y + 13, 1, 1);
+  ctx.fillRect(x + 50, y + 13, 1, 1);
+  
+  // Gueule droite
+  ctx.fillStyle = '#1f1520';
+  ctx.fillRect(x + 48, y + 18, 6, 4);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(x + 49, y + 18, 1, 2);
+  ctx.fillRect(x + 51, y + 18, 1, 3);
+  ctx.fillRect(x + 53, y + 18, 1, 2);
+
+  // Effet de flammes autour
+  const flameAlpha = 0.4 + Math.sin(time * 2) * 0.2;
+  ctx.fillStyle = `rgba(249, 115, 22, ${flameAlpha})`;
+  ctx.beginPath();
+  ctx.arc(x + 28, y + 30, 35, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Barre de vie
   ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-  ctx.fillRect(x, y - 16, miniBossSubBoss.w, 6);
+  ctx.fillRect(x - 5, y - 20, 66, 8);
   ctx.fillStyle = '#dc2626';
-  ctx.fillRect(x, y - 16, miniBossSubBoss.w * hpRatio, 6);
+  ctx.fillRect(x - 4, y - 19, 64 * hpRatio, 6);
 
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = '12px Arial';
-  ctx.fillText('Sous-boss', x - 2, y - 24);
+  // Nom
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 12px Arial';
+  ctx.fillText('⚔️ CERBÈRE', x - 2, y - 28);
 }
 
 function updateMiniBosses() {
@@ -1135,18 +1392,161 @@ function updateMiniBosses() {
   miniBossSubBoss.isUnlocked = countDefeatedMiniBosses() === miniBosses.length;
 
   if (!miniBossSubBoss.isUnlocked || miniBossSubBoss.isDefeated) {
+    // Nettoyer les flammes si le boss est mort
+    cerbereFlames.length = 0;
     return;
   }
 
-  miniBossSubBoss.x += miniBossSubBoss.dirX * miniBossSubBoss.speed;
-  miniBossSubBoss.y += miniBossSubBoss.dirY * miniBossSubBoss.speed;
+  const playerCenterX = player.x + player.width / 2;
+  const playerCenterY = player.y + player.height / 2;
+  const bossCenterX = miniBossSubBoss.x + miniBossSubBoss.w / 2;
+  const bossCenterY = miniBossSubBoss.y + miniBossSubBoss.h / 2;
+  const distToPlayer = Math.hypot(playerCenterX - bossCenterX, playerCenterY - bossCenterY);
+  
+  // Le Cerbère suit le joueur s'il est dans la zone des montagnes
+  if (currentZone === 'Montagnes Brisées' && distToPlayer < 400) {
+    // Chasse le joueur
+    const dx = playerCenterX - bossCenterX;
+    const dy = playerCenterY - bossCenterY;
+    const dist = Math.hypot(dx, dy);
+    
+    if (dist > 60) { // S'approche mais garde une distance minimale
+      miniBossSubBoss.x += (dx / dist) * miniBossSubBoss.speed * 1.2;
+      miniBossSubBoss.y += (dy / dist) * miniBossSubBoss.speed * 1.2;
+    }
+  } else {
+    // Mouvement normal de patrouille
+    miniBossSubBoss.x += miniBossSubBoss.dirX * miniBossSubBoss.speed;
+    miniBossSubBoss.y += miniBossSubBoss.dirY * miniBossSubBoss.speed;
+  }
 
-  if (miniBossSubBoss.x < miniBossSubBoss.minX || miniBossSubBoss.x > miniBossSubBoss.maxX) {
+  // Contraintes de zone
+  if (miniBossSubBoss.x < miniBossSubBoss.minX) {
+    miniBossSubBoss.x = miniBossSubBoss.minX;
     miniBossSubBoss.dirX *= -1;
   }
-  if (miniBossSubBoss.y < miniBossSubBoss.minY || miniBossSubBoss.y > miniBossSubBoss.maxY) {
+  if (miniBossSubBoss.x > miniBossSubBoss.maxX) {
+    miniBossSubBoss.x = miniBossSubBoss.maxX;
+    miniBossSubBoss.dirX *= -1;
+  }
+  if (miniBossSubBoss.y < miniBossSubBoss.minY) {
+    miniBossSubBoss.y = miniBossSubBoss.minY;
     miniBossSubBoss.dirY *= -1;
   }
+  if (miniBossSubBoss.y > miniBossSubBoss.maxY) {
+    miniBossSubBoss.y = miniBossSubBoss.maxY;
+    miniBossSubBoss.dirY *= -1;
+  }
+
+  // Cracher des flammes vers le joueur
+  const now = Date.now();
+  if (now - miniBossSubBoss.lastFireTime > miniBossSubBoss.fireInterval && distToPlayer < 350) {
+    miniBossSubBoss.lastFireTime = now;
+    
+    // Créer 3 flammes (une par tête)
+    const flameSpeed = 4;
+    const dx = playerCenterX - bossCenterX;
+    const dy = playerCenterY - bossCenterY;
+    const dist = Math.hypot(dx, dy);
+    
+    // Flamme centrale (directe vers le joueur)
+    cerbereFlames.push({
+      x: bossCenterX,
+      y: bossCenterY,
+      vx: (dx / dist) * flameSpeed,
+      vy: (dy / dist) * flameSpeed,
+      size: 12,
+      life: 120,
+      maxLife: 120
+    });
+    
+    // Flamme gauche (légèrement décalée)
+    const angle = Math.atan2(dy, dx);
+    cerbereFlames.push({
+      x: bossCenterX - 15,
+      y: bossCenterY,
+      vx: Math.cos(angle - 0.3) * flameSpeed,
+      vy: Math.sin(angle - 0.3) * flameSpeed,
+      size: 10,
+      life: 100,
+      maxLife: 100
+    });
+    
+    // Flamme droite (légèrement décalée)
+    cerbereFlames.push({
+      x: bossCenterX + 15,
+      y: bossCenterY,
+      vx: Math.cos(angle + 0.3) * flameSpeed,
+      vy: Math.sin(angle + 0.3) * flameSpeed,
+      size: 10,
+      life: 100,
+      maxLife: 100
+    });
+  }
+
+  // Mettre à jour les flammes
+  updateCerbereFlames();
+}
+
+function updateCerbereFlames() {
+  for (let i = cerbereFlames.length - 1; i >= 0; i--) {
+    const flame = cerbereFlames[i];
+    
+    // Déplacer la flamme
+    flame.x += flame.vx;
+    flame.y += flame.vy;
+    flame.life--;
+    
+    // Vérifier collision avec le joueur
+    const playerCenterX = player.x + player.width / 2;
+    const playerCenterY = player.y + player.height / 2;
+    const dist = Math.hypot(playerCenterX - flame.x, playerCenterY - flame.y);
+    
+    if (dist < flame.size + 15) {
+      // Le joueur est touché par la flamme
+      player.health -= miniBossSubBoss.flameDamage;
+      player.health = clamp(player.health, 0, player.maxHealth);
+      cerbereFlames.splice(i, 1);
+      continue;
+    }
+    
+    // Supprimer si la vie est épuisée
+    if (flame.life <= 0) {
+      cerbereFlames.splice(i, 1);
+    }
+  }
+}
+
+function drawCerbereFlames() {
+  cerbereFlames.forEach(flame => {
+    const x = flame.x - camera.x;
+    const y = flame.y - camera.y;
+    const alpha = flame.life / flame.maxLife;
+    const size = flame.size * (0.8 + alpha * 0.4);
+    
+    // Aura de chaleur
+    ctx.fillStyle = `rgba(249, 115, 22, ${alpha * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(x, y, size * 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Flamme extérieure (orange)
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+    gradient.addColorStop(0, `rgba(254, 215, 170, ${alpha})`);
+    gradient.addColorStop(0.4, `rgba(251, 146, 60, ${alpha})`);
+    gradient.addColorStop(0.7, `rgba(234, 88, 12, ${alpha * 0.8})`);
+    gradient.addColorStop(1, `rgba(220, 38, 38, 0)`);
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Noyau brillant
+    ctx.fillStyle = `rgba(255, 255, 200, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x, y, size * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
 
 function updateMountainHealing() {
@@ -1411,59 +1811,151 @@ function drawFinalGateWall() {
 function drawFinalBoss() {
   const x = finalBoss.x - camera.x;
   const y = finalBoss.y - camera.y;
+  const time = Date.now() * 0.003;
+  const float = Math.sin(time) * 2;
 
-  ctx.fillStyle = '#3f3f46';
-  ctx.fillRect(x + 4, y + 16, 56, 24);
-  ctx.fillStyle = '#52525b';
-  ctx.fillRect(x + 10, y + 10, 40, 12);
-
-  ctx.fillStyle = '#1f2937';
-  ctx.fillRect(x + 6, y + 38, 8, 14);
-  ctx.fillRect(x + 20, y + 38, 8, 14);
-  ctx.fillRect(x + 38, y + 38, 8, 14);
-  ctx.fillRect(x + 52, y + 38, 8, 14);
-
-  ctx.fillStyle = '#71717a';
-  ctx.fillRect(x + 46, y + 6, 18, 18);
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(x + 50, y + 10, 10, 5);
-  ctx.fillStyle = '#ef4444';
-  ctx.fillRect(x + 52, y + 16, 6, 6);
-
-  ctx.fillStyle = '#9ca3af';
-  ctx.fillRect(x + 30, y + 4, 14, 16);
-  ctx.fillStyle = '#6b7280';
-  ctx.fillRect(x + 29, y + 2, 16, 3);
-  ctx.fillStyle = '#475569';
-  ctx.fillRect(x + 31, y + 20, 12, 6);
-
-  ctx.fillStyle = '#d4d4d8';
+  // === SORCIER VERT PIXEL ART ===
+  
+  // Particules magiques vertes (à gauche)
+  ctx.fillStyle = '#4ade80';
+  const sparkleOffset = Math.sin(time * 2) * 3;
   ctx.beginPath();
-  ctx.ellipse(x + 37, y - 2, 10, 12, 0, 0, Math.PI * 2);
+  ctx.arc(x - 20 + sparkleOffset, y + 10 + float, 4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#111827';
-  ctx.fillRect(x + 32, y - 4, 3, 3);
-  ctx.fillRect(x + 39, y - 4, 3, 3);
-  ctx.fillStyle = '#71717a';
-  ctx.fillRect(x + 34, y + 4, 6, 2);
-
-  ctx.fillStyle = '#9ca3af';
-  ctx.fillRect(x + 17, y + 8, 3, 18);
-  ctx.fillStyle = '#e5e7eb';
-  ctx.fillRect(x + 16, y - 10, 5, 18);
-  ctx.fillStyle = '#cbd5e1';
-  ctx.fillRect(x + 15, y - 12, 7, 3);
-
-  ctx.strokeStyle = '#6b7280';
-  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(x + 24, y + 26);
-  ctx.lineTo(x + 30, y + 34);
-  ctx.stroke();
+  ctx.arc(x - 28, y + 5 + float * 0.5, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x - 24 - sparkleOffset, y + 18 + float, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#86efac';
+  ctx.beginPath();
+  ctx.arc(x - 32, y + 12 + float * 0.7, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x - 18, y + 2 + float, 2, 0, Math.PI * 2);
+  ctx.fill();
 
-  ctx.fillStyle = '#e5e7eb';
-  ctx.font = '12px Arial';
-  ctx.fillText('Boss final', x - 4, y - 8);
+  // Bâton magique (à droite)
+  ctx.fillStyle = '#5c3d2e';
+  ctx.fillRect(x + 38, y - 10 + float, 4, 55);
+  // Tête du bâton (orbe)
+  ctx.fillStyle = '#7c2d12';
+  ctx.beginPath();
+  ctx.arc(x + 40, y - 14 + float, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.arc(x + 40, y - 14 + float, 5, 0, Math.PI * 2);
+  ctx.fill();
+  // Reflet
+  ctx.fillStyle = '#fca5a5';
+  ctx.beginPath();
+  ctx.arc(x + 38, y - 16 + float, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Chapeau pointu vert
+  // Base du chapeau
+  ctx.fillStyle = '#15803d';
+  ctx.fillRect(x + 2, y - 20 + float, 36, 8);
+  // Bande dorée
+  ctx.fillStyle = '#eab308';
+  ctx.fillRect(x + 4, y - 14 + float, 32, 4);
+  // Partie principale du chapeau
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.moveTo(x + 6, y - 20 + float);
+  ctx.lineTo(x + 20, y - 55 + float);
+  ctx.lineTo(x + 34, y - 20 + float);
+  ctx.closePath();
+  ctx.fill();
+  // Pointe courbée
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y - 55 + float);
+  ctx.quadraticCurveTo(x + 30, y - 60 + float, x + 35, y - 50 + float);
+  ctx.lineTo(x + 28, y - 48 + float);
+  ctx.quadraticCurveTo(x + 26, y - 52 + float, x + 20, y - 55 + float);
+  ctx.fill();
+  // Ombre sur le chapeau
+  ctx.fillStyle = '#15803d';
+  ctx.beginPath();
+  ctx.moveTo(x + 24, y - 20 + float);
+  ctx.lineTo(x + 20, y - 50 + float);
+  ctx.lineTo(x + 34, y - 20 + float);
+  ctx.closePath();
+  ctx.fill();
+
+  // Cheveux noirs (sous le chapeau)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + 6, y - 12 + float, 28, 8);
+
+  // Visage (peau claire)
+  ctx.fillStyle = '#fcd9b6';
+  ctx.fillRect(x + 10, y - 6 + float, 20, 14);
+  
+  // Yeux
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + 13, y - 2 + float, 4, 3);
+  ctx.fillRect(x + 23, y - 2 + float, 4, 3);
+
+  // Robe verte (corps)
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(x + 6, y + 8 + float, 28, 30);
+  // Centre de la robe (noir)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + 14, y + 8 + float, 12, 30);
+  
+  // Bras gauche (avec manche verte)
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(x - 8, y + 8 + float, 16, 10);
+  ctx.beginPath();
+  ctx.moveTo(x - 8, y + 18 + float);
+  ctx.lineTo(x - 16, y + 24 + float);
+  ctx.lineTo(x - 10, y + 26 + float);
+  ctx.lineTo(x, y + 18 + float);
+  ctx.closePath();
+  ctx.fill();
+  // Main gauche
+  ctx.fillStyle = '#fcd9b6';
+  ctx.fillRect(x - 18, y + 20 + float, 6, 6);
+
+  // Bras droit (tenant le bâton)
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(x + 32, y + 8 + float, 12, 10);
+  ctx.fillRect(x + 36, y + 16 + float, 8, 12);
+  // Main droite
+  ctx.fillStyle = '#fcd9b6';
+  ctx.fillRect(x + 36, y + 26 + float, 8, 6);
+
+  // Bas de la robe (évasé)
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.moveTo(x + 4, y + 38 + float);
+  ctx.lineTo(x - 4, y + 52 + float);
+  ctx.lineTo(x + 44, y + 52 + float);
+  ctx.lineTo(x + 36, y + 38 + float);
+  ctx.closePath();
+  ctx.fill();
+  // Centre bas noir
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.moveTo(x + 14, y + 38 + float);
+  ctx.lineTo(x + 10, y + 52 + float);
+  ctx.lineTo(x + 30, y + 52 + float);
+  ctx.lineTo(x + 26, y + 38 + float);
+  ctx.closePath();
+  ctx.fill();
+
+  // Pieds
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + 4, y + 50 + float, 12, 6);
+  ctx.fillRect(x + 24, y + 50 + float, 12, 6);
+
+  // Label
+  ctx.fillStyle = '#22c55e';
+  ctx.font = 'bold 12px Arial';
+  ctx.fillText('Sorcier Maléfique', x - 15, y - 62 + float);
 }
 
 function updateFinalBoss() {
@@ -2608,71 +3100,283 @@ function drawPlayer() {
 
   const isWizard = selectedClass === 'sorcier';
 
-  ctx.fillStyle = isWizard ? '#a855f7' : '#f97316';
-  ctx.fillRect(px, py, player.width, player.height);
-
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(px + 6, py + 6, 4, 4);
-  ctx.fillRect(px + 16, py + 6, 4, 4);
-
   if (isWizard) {
-    ctx.fillStyle = '#1e293b';
+    // === SORCIER VERT PIXEL ART ===
+    const time = Date.now() * 0.003;
+    
+    // Particules magiques vertes (à gauche)
+    ctx.fillStyle = '#4ade80';
+    const sparkleOffset = Math.sin(time * 2) * 2;
     ctx.beginPath();
-    ctx.moveTo(px + player.width / 2, py - 14);
-    ctx.lineTo(px + player.width - 2, py + 3);
-    ctx.lineTo(px + 2, py + 3);
+    ctx.arc(px - 8 + sparkleOffset, py + 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#86efac';
+    ctx.beginPath();
+    ctx.arc(px - 12, py + 4, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(px - 6, py + 14, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bâton magique (à droite)
+    ctx.fillStyle = '#5c3d2e';
+    ctx.fillRect(px + player.width + 2, py - 8, 3, 40);
+    // Tête du bâton (orbe)
+    ctx.fillStyle = '#7c2d12';
+    ctx.beginPath();
+    ctx.arc(px + player.width + 3, py - 10, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(px + player.width + 3, py - 10, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Chapeau pointu vert
+    // Base du chapeau
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(px, py - 12, 26, 6);
+    // Bande dorée
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(px + 2, py - 8, 22, 3);
+    // Partie principale du chapeau
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.moveTo(px + 2, py - 12);
+    ctx.lineTo(px + 13, py - 38);
+    ctx.lineTo(px + 24, py - 12);
+    ctx.closePath();
+    ctx.fill();
+    // Pointe courbée
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.moveTo(px + 13, py - 38);
+    ctx.quadraticCurveTo(px + 20, py - 42, px + 24, py - 34);
+    ctx.lineTo(px + 19, py - 33);
+    ctx.quadraticCurveTo(px + 17, py - 36, px + 13, py - 38);
+    ctx.fill();
+    // Ombre sur le chapeau
+    ctx.fillStyle = '#15803d';
+    ctx.beginPath();
+    ctx.moveTo(px + 17, py - 12);
+    ctx.lineTo(px + 13, py - 35);
+    ctx.lineTo(px + 24, py - 12);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#334155';
-    ctx.fillRect(px + 2, py + 2, player.width - 4, 4);
+    // Cheveux noirs (sous le chapeau)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(px + 2, py - 6, 22, 6);
 
-    ctx.fillStyle = '#e5e7eb';
+    // Visage (peau claire)
+    ctx.fillStyle = '#fcd9b6';
+    ctx.fillRect(px + 4, py, 18, 12);
+    
+    // Yeux
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(px + 7, py + 4, 3, 2);
+    ctx.fillRect(px + 16, py + 4, 3, 2);
+
+    // Robe verte (corps)
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(px + 2, py + 12, 22, 22);
+    // Centre de la robe (noir)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(px + 9, py + 12, 8, 22);
+    
+    // Bras gauche (avec manche verte)
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(px - 6, py + 12, 10, 8);
+    // Main gauche
+    ctx.fillStyle = '#fcd9b6';
+    ctx.fillRect(px - 8, py + 18, 5, 5);
+
+    // Bras droit (tenant le bâton)
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(px + 22, py + 12, 8, 8);
+    // Main droite
+    ctx.fillStyle = '#fcd9b6';
+    ctx.fillRect(px + 24, py + 18, 5, 5);
+
+    // Bas de la robe (évasé)
+    ctx.fillStyle = '#22c55e';
     ctx.beginPath();
-    ctx.moveTo(px + 8, py + 16);
-    ctx.lineTo(px + player.width / 2, py + 24);
-    ctx.lineTo(px + player.width - 8, py + 16);
+    ctx.moveTo(px, py + 34);
+    ctx.lineTo(px - 4, py + 44);
+    ctx.lineTo(px + 30, py + 44);
+    ctx.lineTo(px + 26, py + 34);
+    ctx.closePath();
+    ctx.fill();
+    // Centre bas noir
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(px + 9, py + 34);
+    ctx.lineTo(px + 6, py + 44);
+    ctx.lineTo(px + 20, py + 44);
+    ctx.lineTo(px + 17, py + 34);
     ctx.closePath();
     ctx.fill();
 
-    if (player.hasStarterWeapon) {
-      ctx.fillStyle = '#8b5cf6';
-      ctx.fillRect(px + player.width + 2, py + 2, 3, 21);
-      ctx.fillStyle = '#c4b5fd';
-      ctx.fillRect(px + player.width + 1, py - 2, 5, 5);
-    }
+    // Pieds
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(px + 2, py + 42, 8, 4);
+    ctx.fillRect(px + 16, py + 42, 8, 4);
 
     if (player.hasStarterPotions) {
       ctx.fillStyle = '#38bdf8';
-      ctx.fillRect(px - 8, py + 14, 4, 7);
+      ctx.fillRect(px - 14, py + 20, 4, 6);
       ctx.fillStyle = '#f0abfc';
-      ctx.fillRect(px - 3, py + 15, 4, 6);
+      ctx.fillRect(px - 14, py + 28, 4, 6);
     }
   } else {
-    ctx.fillStyle = '#78350f';
-    ctx.fillRect(px - 6, py + 7, 8, 13);
-    ctx.fillStyle = '#b45309';
-    ctx.fillRect(px - 5, py + 9, 6, 9);
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillRect(px - 3, py + 11, 2, 2);
+    // === BARBARIAN PIXEL ART ===
+    
+    // Tête (peau)
+    ctx.fillStyle = '#d4a574';
+    ctx.fillRect(px + 4, py - 2, 18, 16);
+    
+    // Cheveux/crâne chauve sur le dessus
+    ctx.fillStyle = '#8b6914';
+    ctx.fillRect(px + 6, py - 4, 14, 4);
+    
+    // Barbe brune épaisse
+    ctx.fillStyle = '#5c4033';
+    ctx.fillRect(px + 4, py + 8, 18, 10);
+    ctx.fillRect(px + 6, py + 6, 14, 4);
+    // Moustache
+    ctx.fillRect(px + 6, py + 5, 5, 3);
+    ctx.fillRect(px + 15, py + 5, 5, 3);
+    
+    // Yeux
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(px + 7, py + 2, 3, 3);
+    ctx.fillRect(px + 16, py + 2, 3, 3);
+    
+    // Sourcils épais
+    ctx.fillStyle = '#4a3728';
+    ctx.fillRect(px + 6, py, 5, 2);
+    ctx.fillRect(px + 15, py, 5, 2);
+    
+    // Nez
+    ctx.fillStyle = '#c49a6c';
+    ctx.fillRect(px + 12, py + 3, 2, 4);
+    
+    // Corps musclé (torse nu)
+    ctx.fillStyle = '#d4a574';
+    ctx.fillRect(px + 2, py + 16, 22, 18);
+    
+    // Muscles du torse
+    ctx.fillStyle = '#c49a6c';
+    // Pectoraux
+    ctx.fillRect(px + 4, py + 18, 7, 5);
+    ctx.fillRect(px + 15, py + 18, 7, 5);
+    // Abdos
+    ctx.fillRect(px + 8, py + 25, 4, 3);
+    ctx.fillRect(px + 14, py + 25, 4, 3);
+    ctx.fillRect(px + 8, py + 29, 4, 3);
+    ctx.fillRect(px + 14, py + 29, 4, 3);
+    
+    // Lanières de cuir sur le torse
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(px + 2, py + 16, 3, 18);
+    ctx.fillRect(px + 21, py + 16, 3, 18);
+    // Lanière en X
+    ctx.beginPath();
+    ctx.moveTo(px + 5, py + 16);
+    ctx.lineTo(px + 13, py + 28);
+    ctx.lineTo(px + 13, py + 26);
+    ctx.lineTo(px + 7, py + 16);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px + 21, py + 16);
+    ctx.lineTo(px + 13, py + 28);
+    ctx.lineTo(px + 13, py + 26);
+    ctx.lineTo(px + 19, py + 16);
+    ctx.fill();
+    
+    // Bras musclés
+    ctx.fillStyle = '#d4a574';
+    ctx.fillRect(px - 4, py + 16, 6, 14);
+    ctx.fillRect(px + 24, py + 16, 6, 14);
+    // Muscles des bras
+    ctx.fillStyle = '#c49a6c';
+    ctx.fillRect(px - 3, py + 18, 4, 4);
+    ctx.fillRect(px + 25, py + 18, 4, 4);
+    
+    // Mains
+    ctx.fillStyle = '#d4a574';
+    ctx.fillRect(px - 4, py + 30, 6, 4);
+    ctx.fillRect(px + 24, py + 30, 6, 4);
+    
+    // Pagne en fourrure
+    ctx.fillStyle = '#5c4033';
+    ctx.fillRect(px + 2, py + 34, 22, 10);
+    // Texture fourrure
+    ctx.fillStyle = '#4a3728';
+    ctx.fillRect(px + 4, py + 36, 3, 6);
+    ctx.fillRect(px + 10, py + 35, 3, 7);
+    ctx.fillRect(px + 16, py + 36, 3, 6);
+    ctx.fillRect(px + 20, py + 37, 2, 5);
+    // Ceinture
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(px + 2, py + 33, 22, 3);
+    // Boucle de ceinture
+    ctx.fillStyle = '#a0a0a0';
+    ctx.fillRect(px + 11, py + 33, 4, 3);
+    
+    // Jambes
+    ctx.fillStyle = '#d4a574';
+    ctx.fillRect(px + 4, py + 44, 7, 8);
+    ctx.fillRect(px + 15, py + 44, 7, 8);
+    
+    // Bottes/pieds
+    ctx.fillStyle = '#3d2817';
+    ctx.fillRect(px + 3, py + 50, 9, 4);
+    ctx.fillRect(px + 14, py + 50, 9, 4);
 
+    // Arme (si équipée)
     if (player.hasStarterWeapon) {
-      ctx.fillStyle = '#9ca3af';
-      ctx.fillRect(px + player.width + 2, py + 2, 3, 16);
-      ctx.fillRect(px + player.width + 1, py + 1, 5, 3);
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(px + player.width + 2, py + 18, 3, 6);
+      // Grande hache
+      ctx.fillStyle = '#654321';
+      ctx.fillRect(px + player.width + 4, py - 5, 4, 40);
+      // Tête de hache
+      ctx.fillStyle = '#71717a';
+      ctx.beginPath();
+      ctx.moveTo(px + player.width + 8, py - 5);
+      ctx.lineTo(px + player.width + 20, py + 2);
+      ctx.lineTo(px + player.width + 20, py + 12);
+      ctx.lineTo(px + player.width + 8, py + 18);
+      ctx.closePath();
+      ctx.fill();
+      // Reflet sur la hache
+      ctx.fillStyle = '#a1a1aa';
+      ctx.beginPath();
+      ctx.moveTo(px + player.width + 10, py - 2);
+      ctx.lineTo(px + player.width + 16, py + 3);
+      ctx.lineTo(px + player.width + 16, py + 8);
+      ctx.lineTo(px + player.width + 10, py + 12);
+      ctx.closePath();
+      ctx.fill();
     }
 
+    // Bouclier (si équipé)
     if (player.hasStarterShield) {
-      ctx.fillStyle = '#475569';
+      ctx.fillStyle = '#654321';
       ctx.beginPath();
-      ctx.moveTo(px - 10, py + 5);
-      ctx.lineTo(px - 2, py + 5);
-      ctx.lineTo(px - 2, py + 17);
-      ctx.lineTo(px - 6, py + 22);
-      ctx.lineTo(px - 10, py + 17);
+      ctx.moveTo(px - 12, py + 14);
+      ctx.lineTo(px - 2, py + 14);
+      ctx.lineTo(px - 2, py + 32);
+      ctx.lineTo(px - 7, py + 38);
+      ctx.lineTo(px - 12, py + 32);
       ctx.closePath();
+      ctx.fill();
+      // Bordure métallique
+      ctx.strokeStyle = '#71717a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Symbole au centre
+      ctx.fillStyle = '#a0a0a0';
+      ctx.beginPath();
+      ctx.arc(px - 7, py + 24, 4, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -3556,17 +4260,17 @@ function checkEnemyCollision() {
     }
   }
   
-  // Collision avec le sous-boss
+  // Collision avec le sous-boss (Cerbère)
   if (miniBossSubBoss.isUnlocked && !miniBossSubBoss.isDefeated) {
     const bossCenterX = miniBossSubBoss.x + miniBossSubBoss.w / 2;
     const bossCenterY = miniBossSubBoss.y + miniBossSubBoss.h / 2;
     const dist = Math.hypot(centerX - bossCenterX, centerY - bossCenterY);
     
-    if (dist < 45) {
-      player.health -= 0.8;
+    if (dist < 50) {
+      player.health -= miniBossSubBoss.contactDamage; // Dégâts augmentés
       const angle = Math.atan2(centerY - bossCenterY, centerX - bossCenterX);
-      player.x += Math.cos(angle) * 4;
-      player.y += Math.sin(angle) * 4;
+      player.x += Math.cos(angle) * 6; // Répulsion plus forte
+      player.y += Math.sin(angle) * 6;
     }
   }
   
