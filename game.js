@@ -10,6 +10,7 @@ const inventoryPanel = document.getElementById('inventory-panel');
 const inventoryTitle = document.getElementById('inventory-title');
 const inventoryGrid = document.getElementById('inventory-grid');
 const buttons = document.querySelectorAll('.select-btn');
+const cards = document.querySelectorAll('.card');
 
 const TILE = 48;
 const WORLD_COLS = 72;
@@ -105,10 +106,10 @@ const finalPortal = {
 };
 
 const finalBarrier = {
-  x: finalPortal.x + 12,
-  y: finalPortal.y + 70,
-  w: finalPortal.w - 24,
-  h: 22,
+  x: finalPortal.x,
+  y: finalPortal.y,
+  w: finalPortal.w,
+  h: finalPortal.h,
   isOpen: false
 };
 
@@ -146,6 +147,235 @@ const forestTrees = [
   { x: 1490, y: 1180, size: 1.06 }
 ];
 
+const forestClearings = [
+  { x: 910, y: 260, rx: 88, ry: 52 },
+  { x: 1110, y: 510, rx: 108, ry: 62 },
+  { x: 1330, y: 860, rx: 94, ry: 56 },
+  { x: 980, y: 1120, rx: 84, ry: 48 }
+];
+
+const forestBushes = [
+  { x: 870, y: 240, size: 0.95 },
+  { x: 1010, y: 300, size: 1.1 },
+  { x: 1170, y: 260, size: 0.9 },
+  { x: 1280, y: 330, size: 1.05 },
+  { x: 1450, y: 280, size: 0.88 },
+  { x: 900, y: 630, size: 1.05 },
+  { x: 1030, y: 770, size: 1.15 },
+  { x: 1200, y: 700, size: 0.98 },
+  { x: 1360, y: 760, size: 1.1 },
+  { x: 1470, y: 670, size: 0.9 },
+  { x: 890, y: 980, size: 1.12 },
+  { x: 1020, y: 1070, size: 0.96 },
+  { x: 1180, y: 990, size: 1.04 },
+  { x: 1340, y: 1110, size: 1.08 },
+  { x: 1460, y: 1030, size: 0.94 }
+];
+
+const forestRocks = [
+  { x: 940, y: 220, w: 22, h: 14 },
+  { x: 1080, y: 440, w: 26, h: 16 },
+  { x: 1240, y: 520, w: 20, h: 13 },
+  { x: 1410, y: 590, w: 24, h: 14 },
+  { x: 980, y: 860, w: 18, h: 12 },
+  { x: 1180, y: 920, w: 24, h: 15 },
+  { x: 1320, y: 1040, w: 27, h: 16 },
+  { x: 1460, y: 1150, w: 20, h: 12 }
+];
+
+const forestStumps = [
+  { x: 890, y: 430, r: 10 },
+  { x: 1120, y: 330, r: 11 },
+  { x: 1290, y: 640, r: 9 },
+  { x: 1435, y: 910, r: 12 },
+  { x: 1000, y: 1180, r: 10 }
+];
+
+const forestFlowers = [
+  { x: 845, y: 350, color: '#fde68a' },
+  { x: 905, y: 365, color: '#fca5a5' },
+  { x: 970, y: 410, color: '#f9a8d4' },
+  { x: 1060, y: 570, color: '#fde68a' },
+  { x: 1140, y: 640, color: '#bbf7d0' },
+  { x: 1210, y: 780, color: '#fca5a5' },
+  { x: 1290, y: 840, color: '#fde68a' },
+  { x: 1380, y: 930, color: '#f9a8d4' },
+  { x: 1460, y: 840, color: '#bbf7d0' },
+  { x: 910, y: 1080, color: '#fde68a' },
+  { x: 1000, y: 1150, color: '#fca5a5' },
+  { x: 1125, y: 1070, color: '#bbf7d0' },
+  { x: 1210, y: 1160, color: '#f9a8d4' },
+  { x: 1320, y: 1200, color: '#fde68a' }
+];
+
+const mountainHealingCherry = {
+  x: 1875,
+  y: 560,
+  canopyRadius: 86,
+  healRadius: 78,
+  healAmount: 1,
+  healIntervalMs: 700
+};
+
+const mountainBossKey = {
+  x: 2208,
+  y: 1092,
+  radius: 16,
+  isDropped: false,
+  isCollected: false
+};
+
+const miniBosses = [
+  {
+    id: 'temple-guardian',
+    name: 'Gardien du Temple',
+    x: 520,
+    y: 1160,
+    w: 34,
+    h: 34,
+    hp: 3,
+    maxHp: 3,
+    speed: 1.05,
+    dirX: 1,
+    dirY: 1,
+    minX: 280,
+    maxX: 700,
+    minY: 980,
+    maxY: 1360,
+    color: '#f97316'
+  },
+  {
+    id: 'forest-stalker',
+    name: 'Traqueur Sylvestre',
+    x: 1110,
+    y: 1040,
+    w: 34,
+    h: 34,
+    hp: 3,
+    maxHp: 3,
+    speed: 1.18,
+    dirX: 1,
+    dirY: -1,
+    minX: 900,
+    maxX: 1380,
+    minY: 900,
+    maxY: 1260,
+    color: '#22c55e'
+  },
+  {
+    id: 'mountain-brute',
+    name: 'Brute des Crêtes',
+    x: 1820,
+    y: 980,
+    w: 38,
+    h: 38,
+    hp: 4,
+    maxHp: 4,
+    speed: 0.92,
+    dirX: -1,
+    dirY: 1,
+    minX: 1680,
+    maxX: 2240,
+    minY: 820,
+    maxY: 1240,
+    color: '#94a3b8'
+  }
+];
+
+const miniBossSubBoss = {
+  name: 'Sous-boss: Seigneur des Crêtes',
+  x: 2060,
+  y: 940,
+  w: 54,
+  h: 46,
+  hp: 6,
+  maxHp: 6,
+  speed: 0.98,
+  dirX: 1,
+  dirY: 1,
+  minX: 1880,
+  maxX: 2280,
+  minY: 820,
+  maxY: 1240,
+  isUnlocked: false,
+  isDefeated: false
+};
+
+const mountainHealingCherryPetals = Array.from({ length: 22 }, (_, index) => ({
+  startX: -96 + (index % 8) * 24 + (index % 3) * 3,
+  startY: -172 + Math.floor(index / 8) * 18,
+  sway: 8 + (index % 5) * 2,
+  speed: 22 + (index % 6) * 5,
+  drift: index % 2 === 0 ? 1 : -1,
+  size: 3 + (index % 3),
+  delay: index * 0.23
+}));
+
+const mountainPeaks = [
+  { x: 1595, baseY: 330, w: 210, h: 170 },
+  { x: 1770, baseY: 300, w: 250, h: 220 },
+  { x: 1985, baseY: 340, w: 230, h: 180 },
+  { x: 2180, baseY: 310, w: 270, h: 210 }
+];
+
+const mountainPines = [
+  { x: 1610, y: 610, size: 0.95 },
+  { x: 1700, y: 700, size: 1.08 },
+  { x: 1805, y: 640, size: 0.9 },
+  { x: 1920, y: 730, size: 1.12 },
+  { x: 2040, y: 680, size: 0.96 },
+  { x: 2145, y: 780, size: 1.15 },
+  { x: 2255, y: 700, size: 0.88 },
+  { x: 1655, y: 980, size: 1.02 },
+  { x: 1775, y: 1100, size: 1.18 },
+  { x: 1890, y: 1010, size: 0.94 },
+  { x: 2035, y: 1140, size: 1.1 },
+  { x: 2165, y: 1040, size: 0.97 },
+  { x: 2260, y: 1180, size: 1.08 }
+];
+
+const mountainBoulders = [
+  { x: 1635, y: 560, w: 34, h: 22 },
+  { x: 1740, y: 845, w: 42, h: 26 },
+  { x: 1865, y: 760, w: 28, h: 18 },
+  { x: 1975, y: 930, w: 36, h: 22 },
+  { x: 2090, y: 820, w: 40, h: 25 },
+  { x: 2205, y: 980, w: 32, h: 20 },
+  { x: 2285, y: 700, w: 26, h: 16 }
+];
+
+const mountainShrines = [
+  { x: 1710, y: 560, scale: 0.9 },
+  { x: 2120, y: 900, scale: 1 }
+];
+
+const mountainGrassTufts = [
+  { x: 1600, y: 540, size: 0.8 },
+  { x: 1685, y: 620, size: 0.72 },
+  { x: 1810, y: 820, size: 0.9 },
+  { x: 1895, y: 940, size: 0.76 },
+  { x: 1970, y: 700, size: 0.68 },
+  { x: 2055, y: 1060, size: 0.84 },
+  { x: 2160, y: 840, size: 0.8 },
+  { x: 2240, y: 1120, size: 0.75 }
+];
+
+const mountainFlowerPatches = [
+  { x: 1640, y: 1188, color: '#f472b6' },
+  { x: 1735, y: 1148, color: '#e879f9' },
+  { x: 1840, y: 1220, color: '#f43f5e' },
+  { x: 1985, y: 1165, color: '#fb7185' },
+  { x: 2100, y: 1240, color: '#f472b6' },
+  { x: 2210, y: 1180, color: '#ec4899' }
+];
+
+const mountainWallColliders = [
+  { x: 32 * TILE, y: 0, w: 16 * TILE, h: 490 },
+  { x: 32 * TILE + 40, y: 470, w: 210, h: 110 },
+  { x: 32 * TILE + 300, y: 450, w: 230, h: 130 },
+  { x: 32 * TILE + 570, y: 465, w: 175, h: 120 }
+];
+
 const forestChests = [
   {
     x: 980,
@@ -177,15 +407,13 @@ const templeRiver = {
   width: 164,
   waveStep: 46,
   points: [
-    { x: -60, y: 1280 },
-    { x: 260, y: 1140 },
-    { x: 520, y: 1290 },
-    { x: 840, y: 1080 },
-    { x: 1160, y: 1230 },
-    { x: 1480, y: 980 },
-    { x: 1780, y: 1220 },
-    { x: 2030, y: 1390 },
-    { x: 2180, y: 1410 }
+    { x: 18, y: 900 },
+    { x: 22, y: 1235 },
+    { x: 92, y: 1320 },
+    { x: 860, y: 1320 },
+    { x: 1500, y: 1320 },
+    { x: 2200, y: 1320 },
+    { x: 2860, y: 1320 }
   ]
 };
 
@@ -193,21 +421,21 @@ const riverBridges = [
   {
     zone: 'Temple Chinois',
     x: 345,
-    y: 1018,
+    y: 1160,
     w: 58,
     h: 330
   },
   {
     zone: 'Forêt Ancienne',
     x: 1053,
-    y: 966,
+    y: 1160,
     w: 58,
     h: 330
   },
   {
     zone: 'Montagnes Brisées',
-    x: 1753,
-    y: 894,
+    x: 1760,
+    y: 1160,
     w: 58,
     h: 330
   }
@@ -229,14 +457,14 @@ const finalBoss = {
 
 const zones = [
   templeZone,
-  {
-    name: 'Forêt Ancienne',
-    x: 16 * TILE,
-    y: 0,
-    w: 16 * TILE,
-    h: WORLD_HEIGHT,
-    color: '#14532d'
-  },
+    {
+      name: 'Forêt Ancienne',
+      x: 16 * TILE,
+      y: 0,
+      w: 16 * TILE,
+      h: WORLD_HEIGHT,
+      color: '#0b2e1f'
+    },
   {
     name: 'Montagnes Brisées',
     x: 32 * TILE,
@@ -249,6 +477,8 @@ const zones = [
 ];
 
 const templeGroundPattern = createTempleGroundPattern();
+const forestGroundPattern = createForestGroundPattern();
+const mountainGroundPattern = createMountainGroundPattern();
 
 let gameStarted = false;
 let selectedClass = null;
@@ -256,6 +486,7 @@ let currentZone = 'Temple Chinois';
 let hintMessage = 'Objectif: explore les cerisiers';
 let inventoryOpen = false;
 let inventoryItems = [];
+let mountainHealLastTick = 0;
 
 const player = {
   x: 8 * TILE,
@@ -298,6 +529,20 @@ buttons.forEach((button) => {
   });
 });
 
+cards.forEach((card) => {
+  card.addEventListener('click', (event) => {
+    if (gameStarted) return;
+
+    const target = event.target;
+    if (target instanceof HTMLButtonElement && target.classList.contains('select-btn')) {
+      return;
+    }
+
+    const choice = card.dataset.class;
+    startGame(choice);
+  });
+});
+
 window.addEventListener('keydown', (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
 
@@ -326,6 +571,8 @@ window.addEventListener('keyup', (event) => {
 });
 
 function startGame(choice) {
+  if (gameStarted) return;
+
   selectedClass = choice;
   starterChest.isOpened = false;
   entryBarrier.isOpen = false;
@@ -336,6 +583,15 @@ function startGame(choice) {
   forestChests.forEach((chest) => {
     chest.isOpened = false;
   });
+  mountainBossKey.isDropped = false;
+  mountainBossKey.isCollected = false;
+  miniBosses.forEach((boss) => {
+    boss.hp = boss.maxHp;
+  });
+  miniBossSubBoss.hp = miniBossSubBoss.maxHp;
+  miniBossSubBoss.isUnlocked = false;
+  miniBossSubBoss.isDefeated = false;
+  mountainHealLastTick = 0;
   hintMessage = 'Objectif: explore les cerisiers';
 
   if (choice === 'sorcier') {
@@ -398,6 +654,8 @@ function update() {
     player.y = prevY;
   }
 
+  updateMountainHealing();
+  updateMiniBosses();
   updateFinalBoss();
 
   currentZone = findCurrentZone();
@@ -426,8 +684,22 @@ function update() {
     }
   } else if (nearbyForestChest) {
     hintMessage = 'Coffre de forêt: appuie sur E';
+  } else if (getNearbyMiniBoss()) {
+    hintMessage = 'Mini-boss repéré: appuie sur E pour attaquer';
+  } else if (isPlayerNearSubBoss() && !miniBossSubBoss.isDefeated) {
+    hintMessage = miniBossSubBoss.isUnlocked
+      ? 'Sous-boss: appuie sur E pour combattre'
+      : `Bats d'abord les mini-boss (${countDefeatedMiniBosses()}/${miniBosses.length})`;
+  } else if (!mountainBossKey.isCollected && mountainBossKey.isDropped && isPlayerNearMountainBossKey()) {
+    hintMessage = 'La clé du grand boss est là: appuie sur E';
+  } else if (isPlayerInMountainHealingZone()) {
+    hintMessage = 'Cerisier sacré: la zone régénère +1 vie petit à petit';
+  } else if (isPlayerNearMountainHealingTree()) {
+    hintMessage = 'Montagnes: approche du cerisier sacré pour te soigner';
   } else if (!finalBarrier.isOpen && distanceToFinalBarrier() < 120) {
-    hintMessage = 'Barrière du sanctuaire: appuie sur E';
+    hintMessage = mountainBossKey.isCollected
+      ? 'Barrière du sanctuaire: appuie sur E'
+      : 'Il faut battre le sous-boss pour obtenir la clé';
   } else if (!entryBarrier.isOpen && distanceToBarrier() < 90) {
     hintMessage = 'Appuie sur E pour ouvrir la barrière';
   } else if (entryBarrier.isOpen) {
@@ -446,8 +718,14 @@ function draw() {
   drawFinalMoat();
   drawTempleDecoration();
   drawFinalTempleDecoration();
+  drawForestDecor();
+  drawMountainDecor();
   drawForestTrees();
   drawTempleTrees();
+  drawMiniBosses();
+  drawSubBoss();
+  drawMountainHealingCherry();
+  drawMountainBossKey();
   drawForestChests();
   drawRiverBridges();
   drawFinalAccessBridge();
@@ -460,6 +738,383 @@ function draw() {
   drawPlayer();
   drawMiniMap();
   drawHint();
+}
+
+function drawMountainHealingCherry() {
+  const x = mountainHealingCherry.x - camera.x;
+  const y = mountainHealingCherry.y - camera.y;
+  const pulse = (Math.sin(Date.now() * 0.004) + 1) / 2;
+  const time = Date.now() * 0.001;
+
+  ctx.save();
+
+  ctx.fillStyle = `rgba(251, 207, 232, ${(0.09 + pulse * 0.08).toFixed(3)})`;
+  ctx.beginPath();
+  ctx.ellipse(x, y + 70, mountainHealingCherry.healRadius, 36 + pulse * 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(244, 114, 182, ${(0.38 + pulse * 0.2).toFixed(3)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y + 70, mountainHealingCherry.healRadius, 34 + pulse * 5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = '#4a2c1d';
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y + 84);
+  ctx.quadraticCurveTo(x - 20, y + 28, x - 6, y - 22);
+  ctx.quadraticCurveTo(x + 4, y - 58, x + 18, y - 110);
+  ctx.lineTo(x + 34, y - 104);
+  ctx.quadraticCurveTo(x + 12, y - 42, x + 8, y + 28);
+  ctx.quadraticCurveTo(x + 2, y + 58, x + 12, y + 84);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = '#5b3724';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(x + 12, y - 88);
+  ctx.quadraticCurveTo(x - 46, y - 126, x - 82, y - 132);
+  ctx.moveTo(x + 18, y - 104);
+  ctx.quadraticCurveTo(x + 72, y - 142, x + 122, y - 110);
+  ctx.moveTo(x + 4, y - 62);
+  ctx.quadraticCurveTo(x - 34, y - 38, x - 64, y - 8);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x - 46, y + 84);
+  ctx.lineTo(x - 18, y - 12);
+  ctx.moveTo(x + 56, y + 84);
+  ctx.lineTo(x + 22, y - 28);
+  ctx.stroke();
+
+  ctx.fillStyle = '#f472b6';
+  const blossomClusters = [
+    { dx: -72, dy: -134, r: 30 },
+    { dx: -26, dy: -142, r: 36 },
+    { dx: 28, dy: -148, r: 38 },
+    { dx: 82, dy: -128, r: 30 },
+    { dx: -94, dy: -92, r: 26 },
+    { dx: -42, dy: -88, r: 34 },
+    { dx: 12, dy: -94, r: 34 },
+    { dx: 62, dy: -86, r: 30 },
+    { dx: 104, dy: -78, r: 24 },
+    { dx: -60, dy: -46, r: 28 },
+    { dx: -8, dy: -36, r: 34 },
+    { dx: 44, dy: -42, r: 30 }
+  ];
+
+  blossomClusters.forEach((cluster) => {
+    ctx.beginPath();
+    ctx.arc(x + cluster.dx, y + cluster.dy, cluster.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fbcfe8';
+    ctx.beginPath();
+    ctx.arc(x + cluster.dx - cluster.r * 0.24, y + cluster.dy - cluster.r * 0.12, cluster.r * 0.44, 0, Math.PI * 2);
+    ctx.arc(x + cluster.dx + cluster.r * 0.22, y + cluster.dy + cluster.r * 0.08, cluster.r * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f472b6';
+  });
+
+  ctx.fillStyle = '#f9a8d4';
+  for (let i = 0; i < 24; i += 1) {
+    const petalX = x - 72 + i * 7;
+    const petalY = y + 28 + (i % 6) * 10 + pulse * 2;
+    ctx.beginPath();
+    ctx.ellipse(petalX, petalY, 4, 2, 0.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  mountainHealingCherryPetals.forEach((petal) => {
+    const fallCycle = (time * (petal.speed / 32) + petal.delay) % 7;
+    const normalized = fallCycle / 7;
+    const petalX = x + petal.startX + Math.sin(time * 1.8 + petal.delay) * petal.sway + normalized * 18 * petal.drift;
+    const petalY = y + petal.startY + normalized * 240;
+    const rotation = Math.sin(time * 4 + petal.delay) * 0.8;
+    const alpha = 0.35 + (1 - normalized) * 0.45;
+
+    ctx.save();
+    ctx.translate(petalX, petalY);
+    ctx.rotate(rotation);
+    ctx.fillStyle = `rgba(251, 207, 232, ${alpha.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, petal.size, petal.size * 0.55, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `rgba(244, 114, 182, ${(alpha * 0.75).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.ellipse(-0.8, -0.4, petal.size * 0.42, petal.size * 0.22, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '12px Arial';
+  ctx.fillText('Cerisier sacré', x - 34, y - 168);
+
+  ctx.restore();
+}
+
+function drawMountainBossKey() {
+  if (mountainBossKey.isCollected || !mountainBossKey.isDropped) {
+    return;
+  }
+
+  const x = mountainBossKey.x - camera.x;
+  const y = mountainBossKey.y - camera.y;
+  const pulse = (Math.sin(Date.now() * 0.006) + 1) / 2;
+
+  ctx.save();
+  ctx.fillStyle = `rgba(250, 204, 21, ${(0.18 + pulse * 0.18).toFixed(3)})`;
+  ctx.beginPath();
+  ctx.arc(x, y, 18 + pulse * 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#eab308';
+  ctx.beginPath();
+  ctx.arc(x - 4, y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(x + 1, y - 3, 18, 6);
+  ctx.fillRect(x + 10, y - 3, 5, 15);
+  ctx.fillRect(x + 16, y - 3, 4, 10);
+
+  ctx.strokeStyle = '#fef08a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x - 4, y, 3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '12px Arial';
+  ctx.fillText('Clé du boss', x - 28, y - 20);
+  ctx.restore();
+}
+
+function drawMiniBosses() {
+  miniBosses.forEach((boss) => {
+    if (boss.hp <= 0) {
+      return;
+    }
+
+    const x = boss.x - camera.x;
+    const y = boss.y - camera.y;
+    const hpRatio = boss.maxHp > 0 ? boss.hp / boss.maxHp : 0;
+
+    ctx.fillStyle = boss.color;
+    ctx.fillRect(x, y, boss.w, boss.h);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(x + 7, y + 9, 5, 5);
+    ctx.fillRect(x + boss.w - 12, y + 9, 5, 5);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(x + 8, y + boss.h - 10, boss.w - 16, 4);
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.fillRect(x, y - 12, boss.w, 5);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(x, y - 12, boss.w * hpRatio, 5);
+  });
+}
+
+function drawSubBoss() {
+  if (!miniBossSubBoss.isUnlocked || miniBossSubBoss.isDefeated) {
+    return;
+  }
+
+  const x = miniBossSubBoss.x - camera.x;
+  const y = miniBossSubBoss.y - camera.y;
+  const hpRatio = miniBossSubBoss.maxHp > 0 ? miniBossSubBoss.hp / miniBossSubBoss.maxHp : 0;
+
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(x, y, miniBossSubBoss.w, miniBossSubBoss.h);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillRect(x + 6, y + 6, miniBossSubBoss.w - 12, 12);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(x + 10, y + 10, 7, 5);
+  ctx.fillRect(x + miniBossSubBoss.w - 17, y + 10, 7, 5);
+
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+  ctx.fillRect(x, y - 16, miniBossSubBoss.w, 6);
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(x, y - 16, miniBossSubBoss.w * hpRatio, 6);
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '12px Arial';
+  ctx.fillText('Sous-boss', x - 2, y - 24);
+}
+
+function updateMiniBosses() {
+  miniBosses.forEach((boss) => {
+    if (boss.hp <= 0) {
+      return;
+    }
+
+    boss.x += boss.dirX * boss.speed;
+    boss.y += boss.dirY * boss.speed;
+
+    if (boss.x < boss.minX || boss.x > boss.maxX) {
+      boss.dirX *= -1;
+    }
+    if (boss.y < boss.minY || boss.y > boss.maxY) {
+      boss.dirY *= -1;
+    }
+  });
+
+  miniBossSubBoss.isUnlocked = countDefeatedMiniBosses() === miniBosses.length;
+
+  if (!miniBossSubBoss.isUnlocked || miniBossSubBoss.isDefeated) {
+    return;
+  }
+
+  miniBossSubBoss.x += miniBossSubBoss.dirX * miniBossSubBoss.speed;
+  miniBossSubBoss.y += miniBossSubBoss.dirY * miniBossSubBoss.speed;
+
+  if (miniBossSubBoss.x < miniBossSubBoss.minX || miniBossSubBoss.x > miniBossSubBoss.maxX) {
+    miniBossSubBoss.dirX *= -1;
+  }
+  if (miniBossSubBoss.y < miniBossSubBoss.minY || miniBossSubBoss.y > miniBossSubBoss.maxY) {
+    miniBossSubBoss.dirY *= -1;
+  }
+}
+
+function updateMountainHealing() {
+  if (!isPlayerInMountainHealingZone()) {
+    mountainHealLastTick = 0;
+    return;
+  }
+
+  if (player.health >= player.maxHealth) {
+    return;
+  }
+
+  const now = Date.now();
+  if (mountainHealLastTick === 0) {
+    mountainHealLastTick = now;
+    return;
+  }
+
+  if (now - mountainHealLastTick < mountainHealingCherry.healIntervalMs) {
+    return;
+  }
+
+  player.health = clamp(player.health + mountainHealingCherry.healAmount, 0, player.maxHealth);
+  mountainHealLastTick = now;
+}
+
+function isPlayerInMountainHealingZone() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  return Math.hypot(centerX - mountainHealingCherry.x, centerY - (mountainHealingCherry.y + 70)) <= mountainHealingCherry.healRadius;
+}
+
+function isPlayerNearMountainHealingTree() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  return Math.hypot(centerX - mountainHealingCherry.x, centerY - mountainHealingCherry.y) <= mountainHealingCherry.healRadius + 80;
+}
+
+function drawForestDecor() {
+  const forestX = 16 * TILE;
+  const forestY = 0;
+  const forestW = 16 * TILE;
+  const forestH = WORLD_HEIGHT;
+    const screenX = forestX - camera.x;
+    const screenY = forestY - camera.y;
+
+  ctx.save();
+  // Keep forest decoration strictly inside the forest zone.
+  ctx.beginPath();
+  ctx.rect(screenX, screenY, forestW, forestH);
+  ctx.clip();
+
+  for (let i = 0; i < forestClearings.length; i += 1) {
+    const clearing = forestClearings[i];
+    const x = clearing.x - camera.x;
+    const y = clearing.y - camera.y;
+    ctx.fillStyle = 'rgba(187, 247, 208, 0.12)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, clearing.rx, clearing.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(220, 252, 231, 0.16)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(x, y, clearing.rx * 0.72, clearing.ry * 0.72, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const lightShift = Math.sin(Date.now() * 0.0008) * 14;
+  for (let i = 0; i < 4; i += 1) {
+    const lx = screenX + 80 + i * 170 + lightShift;
+    const grad = ctx.createLinearGradient(lx, screenY, lx + 26, screenY + forestH);
+    grad.addColorStop(0, 'rgba(254, 240, 138, 0.12)');
+    grad.addColorStop(0.5, 'rgba(254, 240, 138, 0.03)');
+    grad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(lx, screenY, 26, forestH);
+  }
+
+  forestBushes.forEach((bush) => {
+    const x = bush.x - camera.x;
+    const y = bush.y - camera.y;
+    const r = 15 * bush.size;
+
+      ctx.fillStyle = '#0b2e1f';
+    ctx.beginPath();
+    ctx.arc(x - r * 0.35, y + 2, r * 0.72, 0, Math.PI * 2);
+    ctx.arc(x + r * 0.22, y + 1, r * 0.82, 0, Math.PI * 2);
+    ctx.arc(x + r * 0.62, y + 3, r * 0.64, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#166534';
+    ctx.beginPath();
+    ctx.arc(x - r * 0.26, y - 2, r * 0.45, 0, Math.PI * 2);
+    ctx.arc(x + r * 0.34, y - 3, r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  forestRocks.forEach((rock) => {
+    const x = rock.x - camera.x;
+    const y = rock.y - camera.y;
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.ellipse(x, y, rock.w / 2, rock.h / 2, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath();
+    ctx.ellipse(x - 3, y - 2, rock.w / 4, rock.h / 4, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  forestStumps.forEach((stump) => {
+    const x = stump.x - camera.x;
+    const y = stump.y - camera.y;
+    ctx.fillStyle = '#7c2d12';
+    ctx.fillRect(x - stump.r * 0.55, y - stump.r * 0.2, stump.r * 1.1, stump.r * 1.3);
+    ctx.fillStyle = '#b45309';
+    ctx.beginPath();
+    ctx.ellipse(x, y - stump.r * 0.2, stump.r, stump.r * 0.54, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120, 53, 15, 0.75)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y - stump.r * 0.2, stump.r * 0.42, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  forestFlowers.forEach((flower) => {
+    const x = flower.x - camera.x;
+    const y = flower.y - camera.y;
+    ctx.fillStyle = '#0f3d2e';
+    ctx.fillRect(x, y, 1.6, 6);
+    ctx.fillStyle = flower.color;
+    ctx.beginPath();
+    ctx.arc(x + 0.8, y - 1, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.restore();
 }
 
 function drawFinalTempleDecoration() {
@@ -476,18 +1131,29 @@ function drawFinalTempleDecoration() {
 }
 
 function drawFinalBarrier() {
+  if (finalBarrier.isOpen) {
+    return;
+  }
+
   const x = finalBarrier.x - camera.x;
   const y = finalBarrier.y - camera.y;
 
-  ctx.fillStyle = '#111827';
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.75)';
   ctx.fillRect(x, y, finalBarrier.w, finalBarrier.h);
 
-  if (!finalBarrier.isOpen) {
-    ctx.fillStyle = '#dc2626';
-    for (let i = 0; i < 3; i += 1) {
-      ctx.fillRect(x + 8 + i * 18, y + 3, 10, finalBarrier.h - 6);
-    }
+  ctx.fillStyle = '#dc2626';
+  const bars = 5;
+  const innerPadding = 8;
+  const availableWidth = finalBarrier.w - innerPadding * 2;
+  const barWidth = 9;
+  const spacing = bars > 1 ? (availableWidth - bars * barWidth) / (bars - 1) : 0;
+  for (let i = 0; i < bars; i += 1) {
+    ctx.fillRect(x + innerPadding + i * (barWidth + spacing), y + 4, barWidth, finalBarrier.h - 8);
   }
+
+  ctx.fillStyle = '#7f1d1d';
+  ctx.fillRect(x, y, finalBarrier.w, 4);
+  ctx.fillRect(x, y + finalBarrier.h - 4, finalBarrier.w, 4);
 
   ctx.fillStyle = '#f8fafc';
   ctx.font = '12px Arial';
@@ -652,12 +1318,12 @@ function drawForestTrees() {
     ctx.fillStyle = '#4d2d1b';
     ctx.fillRect(x - trunkW / 2, y - trunkH / 2, trunkW, trunkH);
 
-    ctx.fillStyle = '#166534';
+    ctx.fillStyle = '#0f3d2e';
     ctx.beginPath();
     ctx.arc(x, y - trunkH / 2 - 12, crown, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = '#22c55e';
+    ctx.fillStyle = '#166534';
     ctx.beginPath();
     ctx.arc(x - crown * 0.42, y - trunkH / 2 - 20, crown * 0.56, 0, Math.PI * 2);
     ctx.arc(x + crown * 0.38, y - trunkH / 2 - 16, crown * 0.52, 0, Math.PI * 2);
@@ -757,6 +1423,45 @@ function drawZones() {
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
       ctx.fillRect(x, y, zone.w, zone.h);
+    } else if (zone.name === 'Forêt Ancienne') {
+      ctx.fillStyle = '#0f3d2e';
+      ctx.fillRect(x, y, zone.w, zone.h);
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = forestGroundPattern || '#0b2e1f';
+      ctx.fillRect(0, 0, zone.w, zone.h);
+      ctx.restore();
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+      ctx.fillRect(x, y, zone.w, zone.h);
+    } else if (zone.name === 'Montagnes Brisées') {
+      const sky = ctx.createLinearGradient(x, y, x, y + zone.h * 0.64);
+      sky.addColorStop(0, '#0b74c8');
+      sky.addColorStop(1, '#8ec9f5');
+      ctx.fillStyle = sky;
+      ctx.fillRect(x, y, zone.w, zone.h * 0.64);
+
+      const meadowY = y + zone.h * 0.52;
+      const meadow = ctx.createLinearGradient(x, meadowY, x, y + zone.h);
+      meadow.addColorStop(0, '#7cab4a');
+      meadow.addColorStop(1, '#4c6e2d');
+      ctx.fillStyle = meadow;
+      ctx.fillRect(x, meadowY, zone.w, zone.h - zone.h * 0.52);
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = mountainGroundPattern || '#475569';
+      ctx.fillRect(0, zone.h * 0.48, zone.w, zone.h * 0.52);
+      ctx.restore();
+
+      const ridgeGlow = ctx.createLinearGradient(x, y, x, y + zone.h);
+      ridgeGlow.addColorStop(0, 'rgba(219, 234, 254, 0.12)');
+      ridgeGlow.addColorStop(0.65, 'rgba(56, 92, 44, 0.06)');
+      ridgeGlow.addColorStop(1, 'rgba(15, 23, 42, 0.1)');
+      ctx.fillStyle = ridgeGlow;
+      ctx.fillRect(x, y, zone.w, zone.h);
     } else {
       ctx.fillStyle = zone.color;
       ctx.fillRect(x, y, zone.w, zone.h);
@@ -768,6 +1473,247 @@ function drawZones() {
     ctx.font = 'bold 20px Arial';
     ctx.fillText(zone.name, x + 14, y + 28);
   });
+}
+
+function createMountainGroundPattern() {
+  const tile = document.createElement('canvas');
+  tile.width = 192;
+  tile.height = 192;
+  const patternCtx = tile.getContext('2d');
+
+  patternCtx.fillStyle = '#4b5563';
+  patternCtx.fillRect(0, 0, tile.width, tile.height);
+
+  patternCtx.fillStyle = '#64748b';
+  for (let i = 0; i < 130; i += 1) {
+    const x = (i * 43) % tile.width;
+    const y = (i * 29) % tile.height;
+    patternCtx.beginPath();
+    patternCtx.ellipse(x, y, 9 + (i % 5), 5 + (i % 3), (i % 7) * 0.2, 0, Math.PI * 2);
+    patternCtx.fill();
+  }
+
+  patternCtx.strokeStyle = 'rgba(226, 232, 240, 0.15)';
+  patternCtx.lineWidth = 1;
+  for (let i = 0; i < 90; i += 1) {
+    const x = (i * 37 + 11) % tile.width;
+    const y = (i * 61 + 7) % tile.height;
+    patternCtx.beginPath();
+    patternCtx.moveTo(x - 8, y + 4);
+    patternCtx.lineTo(x, y - 5);
+    patternCtx.lineTo(x + 7, y + 3);
+    patternCtx.stroke();
+  }
+
+  patternCtx.fillStyle = 'rgba(148, 163, 184, 0.22)';
+  for (let i = 0; i < 150; i += 1) {
+    const x = (i * 17) % tile.width;
+    const y = (i * 41) % tile.height;
+    patternCtx.fillRect(x, y, 2, 2);
+  }
+
+  return ctx.createPattern(tile, 'repeat');
+}
+
+function drawMountainDecor() {
+  const mountainX = 32 * TILE;
+  const mountainY = 0;
+  const mountainW = 16 * TILE;
+  const mountainH = WORLD_HEIGHT;
+  const screenX = mountainX - camera.x;
+  const screenY = mountainY - camera.y;
+  const mistShift = Math.sin(Date.now() * 0.00055) * 20;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(screenX, screenY, mountainW, mountainH);
+  ctx.clip();
+
+  mountainPeaks.forEach((peak, index) => {
+    const x = peak.x - camera.x;
+    const y = peak.baseY - camera.y;
+
+    ctx.fillStyle = index % 2 === 0 ? '#5b687a' : '#6a788c';
+    ctx.beginPath();
+    ctx.moveTo(x - peak.w / 2, y);
+    ctx.lineTo(x, y - peak.h);
+    ctx.lineTo(x + peak.w / 2, y);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(241, 245, 249, 0.72)';
+    ctx.beginPath();
+    ctx.moveTo(x - peak.w * 0.12, y - peak.h * 0.74);
+    ctx.lineTo(x, y - peak.h);
+    ctx.lineTo(x + peak.w * 0.16, y - peak.h * 0.72);
+    ctx.lineTo(x + peak.w * 0.06, y - peak.h * 0.58);
+    ctx.lineTo(x - peak.w * 0.04, y - peak.h * 0.62);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  ctx.fillStyle = '#4e5f71';
+  ctx.beginPath();
+  ctx.moveTo(screenX - 80, screenY + 520);
+  ctx.lineTo(screenX + 60, screenY + 440);
+  ctx.lineTo(screenX + 220, screenY + 500);
+  ctx.lineTo(screenX + 360, screenY + 430);
+  ctx.lineTo(screenX + 520, screenY + 520);
+  ctx.lineTo(screenX + 760, screenY + 460);
+  ctx.lineTo(screenX + mountainW + 80, screenY + 560);
+  ctx.lineTo(screenX + mountainW + 80, screenY + 780);
+  ctx.lineTo(screenX - 80, screenY + 780);
+  ctx.closePath();
+  ctx.fill();
+
+  for (let i = 0; i < 3; i += 1) {
+    const cloudY = screenY + 180 + i * 240;
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.08)';
+    drawCloud(screenX + 160 + i * 180 + mistShift, cloudY, 54);
+    drawCloud(screenX + 350 + i * 150 - mistShift * 0.6, cloudY + 28, 42);
+  }
+
+  mountainPines.forEach((pine) => {
+    const x = pine.x - camera.x;
+    const y = pine.y - camera.y;
+    const trunkH = 26 * pine.size;
+    const trunkW = 8 * pine.size;
+
+    ctx.fillStyle = '#4a2c1d';
+    ctx.fillRect(x - trunkW / 2, y - trunkH / 2, trunkW, trunkH);
+
+    ctx.fillStyle = '#0f3d2e';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 42 * pine.size);
+    ctx.lineTo(x - 24 * pine.size, y - 4 * pine.size);
+    ctx.lineTo(x + 24 * pine.size, y - 4 * pine.size);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(x, y - 26 * pine.size);
+    ctx.lineTo(x - 28 * pine.size, y + 12 * pine.size);
+    ctx.lineTo(x + 28 * pine.size, y + 12 * pine.size);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#166534';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 12 * pine.size);
+    ctx.lineTo(x - 22 * pine.size, y + 24 * pine.size);
+    ctx.lineTo(x + 22 * pine.size, y + 24 * pine.size);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  mountainBoulders.forEach((boulder) => {
+    const x = boulder.x - camera.x;
+    const y = boulder.y - camera.y;
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.ellipse(x, y, boulder.w / 2, boulder.h / 2, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath();
+    ctx.ellipse(x - boulder.w * 0.15, y - boulder.h * 0.12, boulder.w * 0.22, boulder.h * 0.2, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  mountainShrines.forEach((shrine) => {
+    const x = shrine.x - camera.x;
+    const y = shrine.y - camera.y;
+    const scale = shrine.scale;
+
+    ctx.fillStyle = '#7c2d12';
+    ctx.fillRect(x - 18 * scale, y - 8 * scale, 36 * scale, 30 * scale);
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.moveTo(x - 26 * scale, y - 8 * scale);
+    ctx.lineTo(x + 26 * scale, y - 8 * scale);
+    ctx.lineTo(x + 18 * scale, y - 24 * scale);
+    ctx.lineTo(x - 18 * scale, y - 24 * scale);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(x - 3 * scale, y - 2 * scale, 6 * scale, 18 * scale);
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.16)';
+    ctx.beginPath();
+    ctx.arc(x, y + 12 * scale, 20 * scale, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  mountainGrassTufts.forEach((tuft) => {
+    const x = tuft.x - camera.x;
+    const y = tuft.y - camera.y;
+    const h = 10 * tuft.size;
+    ctx.strokeStyle = '#84cc16';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 2);
+    ctx.lineTo(x - 2, y - h);
+    ctx.moveTo(x + 4, y + 2);
+    ctx.lineTo(x + 3, y - h * 0.9);
+    ctx.moveTo(x + 8, y + 2);
+    ctx.lineTo(x + 10, y - h * 0.75);
+    ctx.stroke();
+  });
+
+  mountainFlowerPatches.forEach((flower) => {
+    const x = flower.x - camera.x;
+    const y = flower.y - camera.y;
+    ctx.fillStyle = '#2f6c33';
+    ctx.fillRect(x, y, 2, 9);
+    ctx.fillStyle = flower.color;
+    ctx.beginPath();
+    ctx.arc(x + 1, y - 1, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fde68a';
+    ctx.beginPath();
+    ctx.arc(x + 1, y - 1, 1, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+function createForestGroundPattern() {
+  const tile = document.createElement('canvas');
+  tile.width = 192;
+  tile.height = 192;
+  const patternCtx = tile.getContext('2d');
+
+  patternCtx.fillStyle = '#0f3f2a';
+  patternCtx.fillRect(0, 0, tile.width, tile.height);
+
+  patternCtx.fillStyle = '#1a5a37';
+  for (let i = 0; i < 170; i += 1) {
+    const x = (i * 37) % tile.width;
+    const y = (i * 53) % tile.height;
+    const w = 8 + (i % 6);
+    const h = 5 + (i % 4);
+    patternCtx.fillRect(x, y, w, h);
+  }
+
+  patternCtx.fillStyle = '#0b2e1f';
+  for (let i = 0; i < 220; i += 1) {
+    const x = (i * 29 + 11) % tile.width;
+    const y = (i * 47 + 7) % tile.height;
+    patternCtx.fillRect(x, y, 2, 2);
+  }
+
+  patternCtx.strokeStyle = 'rgba(134, 239, 172, 0.22)';
+  patternCtx.lineWidth = 1;
+  for (let y = 12; y < tile.height; y += 24) {
+    for (let x = 6; x < tile.width; x += 26) {
+      patternCtx.beginPath();
+      patternCtx.moveTo(x, y + 6);
+      patternCtx.lineTo(x + 2, y - 4);
+      patternCtx.lineTo(x + 4, y + 6);
+      patternCtx.stroke();
+    }
+  }
+
+  return ctx.createPattern(tile, 'repeat');
 }
 
 function createTempleGroundPattern() {
@@ -1149,21 +2095,7 @@ function drawTempleRiver() {
   drawRiverPath(templeRiver.width + 10, '#1e40af');
   drawRiverPath(templeRiver.width * 0.66, '#38bdf8');
 
-  const endPoint = templeRiver.points[templeRiver.points.length - 1];
-  const endX = endPoint.x - camera.x;
-  const endY = endPoint.y - camera.y;
-  ctx.fillStyle = '#1e3a3f';
-  ctx.beginPath();
-  ctx.arc(endX, endY, templeRiver.width * 0.62, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#1e40af';
-  ctx.beginPath();
-  ctx.arc(endX, endY, templeRiver.width * 0.48, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#38bdf8';
-  ctx.beginPath();
-  ctx.arc(endX, endY, templeRiver.width * 0.31, 0, Math.PI * 2);
-  ctx.fill();
+  drawRiverWaterfall();
 
   ctx.fillStyle = 'rgba(186, 230, 253, 0.75)';
   for (let i = 0; i < templeRiver.points.length - 1; i += 1) {
@@ -1183,6 +2115,39 @@ function drawTempleRiver() {
       ctx.ellipse(x - 9, y + 7, 6, 2.5, -0.2, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+}
+
+function drawRiverWaterfall() {
+  const source = templeRiver.points[0];
+  const plunge = templeRiver.points[1];
+  const x = source.x - camera.x;
+  const topY = source.y - camera.y;
+  const bottomY = plunge.y - camera.y;
+  const waterfallWidth = templeRiver.width * 0.64;
+  const shimmer = (Math.sin(Date.now() * 0.01) + 1) / 2;
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillRect(x - waterfallWidth / 2, topY, waterfallWidth, bottomY - topY);
+
+  ctx.fillStyle = 'rgba(186, 230, 253, 0.65)';
+  for (let i = 0; i < 6; i += 1) {
+    const streamX = x - waterfallWidth / 2 + 12 + i * (waterfallWidth / 6);
+    ctx.fillRect(streamX, topY, 7 + (i % 2), bottomY - topY);
+  }
+
+  ctx.fillStyle = `rgba(241, 245, 249, ${(0.36 + shimmer * 0.24).toFixed(3)})`;
+  ctx.beginPath();
+  ctx.ellipse(plunge.x - camera.x, bottomY + 16, templeRiver.width * 0.42, 24 + shimmer * 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(191, 219, 254, 0.7)';
+  for (let i = 0; i < 8; i += 1) {
+    const foamX = plunge.x - camera.x - 44 + i * 12;
+    const foamY = bottomY + 14 + (i % 3) * 6;
+    ctx.beginPath();
+    ctx.ellipse(foamX, foamY, 8, 3, 0.2, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
@@ -1396,6 +2361,7 @@ function isBlockedByWorld() {
   const colliders = [
     ...templeColliders,
     ...finalTempleColliders,
+    ...mountainWallColliders,
     ...getBarrierWallRects(),
     ...getGateColliderIfClosed(),
     ...getFinalGateWallColliders(),
@@ -1504,6 +2470,15 @@ function handleInteract() {
   if (tryOpenForestChest()) {
     return;
   }
+  if (tryHitMiniBoss()) {
+    return;
+  }
+  if (tryHitSubBoss()) {
+    return;
+  }
+  if (tryCollectMountainBossKey()) {
+    return;
+  }
   if (tryOpenFinalBarrier()) {
     return;
   }
@@ -1520,8 +2495,63 @@ function tryOpenBarrier() {
 function tryOpenFinalBarrier() {
   if (finalBarrier.isOpen) return false;
   if (distanceToFinalBarrier() >= 120) return false;
+  if (!mountainBossKey.isCollected) {
+    hintMessage = 'La porte du boss est verrouillée: bats le sous-boss pour la clé';
+    return false;
+  }
   finalBarrier.isOpen = true;
   hintMessage = 'Barrière finale ouverte';
+  return true;
+}
+
+function tryHitMiniBoss() {
+  const nearbyBoss = getNearbyMiniBoss();
+  if (!nearbyBoss) {
+    return false;
+  }
+
+  nearbyBoss.hp -= 1;
+  if (nearbyBoss.hp <= 0) {
+    nearbyBoss.hp = 0;
+    hintMessage = `${nearbyBoss.name} vaincu (${countDefeatedMiniBosses()}/${miniBosses.length})`;
+  } else {
+    hintMessage = `${nearbyBoss.name} touché (${nearbyBoss.hp} PV)`;
+  }
+
+  return true;
+}
+
+function tryHitSubBoss() {
+  if (!miniBossSubBoss.isUnlocked || miniBossSubBoss.isDefeated) {
+    return false;
+  }
+
+  if (!isPlayerNearSubBoss()) {
+    return false;
+  }
+
+  miniBossSubBoss.hp -= 1;
+  if (miniBossSubBoss.hp <= 0) {
+    miniBossSubBoss.hp = 0;
+    miniBossSubBoss.isDefeated = true;
+    mountainBossKey.x = miniBossSubBoss.x + miniBossSubBoss.w / 2;
+    mountainBossKey.y = miniBossSubBoss.y + miniBossSubBoss.h / 2;
+    mountainBossKey.isDropped = true;
+    hintMessage = 'Sous-boss vaincu: la clé du grand boss est tombée';
+  } else {
+    hintMessage = `Sous-boss touché (${miniBossSubBoss.hp} PV)`;
+  }
+
+  return true;
+}
+
+function tryCollectMountainBossKey() {
+  if (mountainBossKey.isCollected || !mountainBossKey.isDropped) return false;
+  if (!isPlayerNearMountainBossKey()) return false;
+
+  mountainBossKey.isCollected = true;
+  addItemsToInventory(['Clé du boss']);
+  hintMessage = 'Clé du boss récupérée';
   return true;
 }
 
@@ -1531,6 +2561,54 @@ function distanceToFinalBarrier() {
   const barrierCenterX = finalBarrier.x + finalBarrier.w / 2;
   const barrierCenterY = finalBarrier.y + finalBarrier.h / 2;
   return Math.hypot(centerX - barrierCenterX, centerY - barrierCenterY);
+}
+
+function isPlayerNearMountainBossKey() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  return Math.hypot(centerX - mountainBossKey.x, centerY - mountainBossKey.y) <= mountainBossKey.radius + 58;
+}
+
+function getNearbyMiniBoss() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+
+  for (const boss of miniBosses) {
+    if (boss.hp <= 0) {
+      continue;
+    }
+
+    const bossCenterX = boss.x + boss.w / 2;
+    const bossCenterY = boss.y + boss.h / 2;
+    const distance = Math.hypot(centerX - bossCenterX, centerY - bossCenterY);
+    if (distance < 82) {
+      return boss;
+    }
+  }
+
+  return null;
+}
+
+function isPlayerNearSubBoss() {
+  if (!miniBossSubBoss.isUnlocked || miniBossSubBoss.isDefeated) {
+    return false;
+  }
+
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  const bossCenterX = miniBossSubBoss.x + miniBossSubBoss.w / 2;
+  const bossCenterY = miniBossSubBoss.y + miniBossSubBoss.h / 2;
+  return Math.hypot(centerX - bossCenterX, centerY - bossCenterY) < 94;
+}
+
+function countDefeatedMiniBosses() {
+  let defeated = 0;
+  miniBosses.forEach((boss) => {
+    if (boss.hp <= 0) {
+      defeated += 1;
+    }
+  });
+  return defeated;
 }
 
 function tryOpenStarterChest() {
