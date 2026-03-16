@@ -216,6 +216,18 @@ const forestFlowers = [
   { x: 1320, y: 1200, color: '#fde68a' }
 ];
 
+// === SYSTÈME DE FOYER MÉDIÉVAL ===
+// Feu de camp fixe dans la forêt : s'allume progressivement avec le bois collecté
+const medievalFoyer = {
+  x: 1055,
+  y: 695,
+  radius: 30,
+  woodCount: 0,     // bois accumulé
+  maxWood: 9,       // plein feu
+  // seuils: stage 0=éteint, 1=braises, 2=petite flamme, 3=feu moyen, 4=grand feu
+  stages: [0, 2, 4, 6, 9]
+};
+
 const mountainHealingCherry = {
   x: 1875,
   y: 560,
@@ -473,15 +485,45 @@ const finalBoss = {
   x: finalZone.x + 800,
   y: 680,
   w: 56,
-  h: 34,
-  dirX: 1,
-  dirY: 1,
-  speed: 1.3,
-  minX: finalZone.x + 360,
-  maxX: finalZone.x + finalZone.w - 180,
-  minY: 380,
-  maxY: 1240
+  h: 72,
+  hp: 20,
+  maxHp: 20,
+  isDefeated: false,
+  phase: 1,
+  // Movement
+  speed: 1.4,
+  minX: finalZone.x + 340,
+  maxX: finalZone.x + finalZone.w - 200,
+  minY: 320,
+  maxY: 1260,
+  // Hit feedback
+  lastHitTime: 0,
+  invincibleMs: 500,
+  flashEndTime: 0,
+  enrageTime: 0,
+  // Contact damage (cooldown-based)
+  contactDamage: 2,
+  lastContactTime: 0,
+  contactCooldownMs: 700,
+  // Orb attack
+  lastOrbTime: 0,
+  // Dash
+  isDashing: false,
+  dashVX: 0,
+  dashVY: 0,
+  dashStartTime: 0,
+  dashDurationMs: 420,
+  lastDashTime: 0,
+  // Laser (phase 3)
+  isLasering: false,
+  laserAngle: 0,
+  laserStartTime: 0,
+  laserDurationMs: 2200,
+  lastLaserTime: 0,
+  lastLaserHitTime: 0
 };
+
+const finalBossOrbs = []; // { x, y, vx, vy, r, phase }
 
 const zones = [
   templeZone,
@@ -541,6 +583,7 @@ let inventoryItems = [];
 let mountainHealLastTick = 0;
 let isGameOver = false;
 let gameOverReason = '';
+let isVictory = false;
 
 // === SYSTÈME DE SURVIE ===
 const survival = {
@@ -870,6 +913,7 @@ function startGame(choice) {
   
   // Reset survie
   survivalResources.campfires = [];
+  medievalFoyer.woodCount = 0;
   survivalResources.berries.forEach(b => { b.collected = false; });
   survivalResources.wood.forEach(w => { w.collected = false; });
   survivalResources.stone.forEach(s => { s.collected = false; });
@@ -918,6 +962,23 @@ function startGame(choice) {
   initSurvival();
   isGameOver = false;
   gameOverReason = '';
+  isVictory = false;
+  // Reset final boss
+  finalBoss.x = finalZone.x + 800;
+  finalBoss.y = 680;
+  finalBoss.hp = finalBoss.maxHp;
+  finalBoss.isDefeated = false;
+  finalBoss.phase = 1;
+  finalBoss.isDashing = false;
+  finalBoss.isLasering = false;
+  finalBoss.lastHitTime = 0;
+  finalBoss.lastContactTime = 0;
+  finalBoss.lastOrbTime = 0;
+  finalBoss.lastDashTime = 0;
+  finalBoss.lastLaserTime = 0;
+  finalBoss.lastLaserHitTime = 0;
+  finalBoss.flashEndTime = 0;
+  finalBossOrbs.length = 0;
   gameStarted = true;
   requestAnimationFrame(gameLoop);
 }
@@ -960,6 +1021,7 @@ function update() {
   updateMountainHealing();
   updateMiniBosses();
   updateFinalBoss();
+  updateFinalBossOrbs();
   updateSurvival();
   checkEnemyCollision();
 
@@ -989,6 +1051,14 @@ function update() {
     }
   } else if (nearbyForestChest) {
     hintMessage = 'Coffre de forêt: appuie sur E';
+  } else if (distanceToFoyer() < 64) {
+    if (medievalFoyer.woodCount >= medievalFoyer.maxWood) {
+      hintMessage = '🔥 Foyer médiéval embrasé !';
+    } else if (survivalInventory.wood > 0) {
+      hintMessage = `🪵 Appuie sur E pour alimenter le foyer (${medievalFoyer.woodCount}/${medievalFoyer.maxWood} bûches)`;
+    } else {
+      hintMessage = '🪵 Foyer médiéval: ramasse du bois dans la forêt (E près des bûches)';
+    }
   } else if (getNearbyMiniBoss()) {
     hintMessage = 'Mini-boss repéré: appuie sur E pour attaquer';
   } else if (isPlayerNearSubBoss() && !miniBossSubBoss.isDefeated) {
@@ -1001,6 +1071,12 @@ function update() {
     hintMessage = 'Cerisier sacré: la zone régénère +1 vie petit à petit';
   } else if (isPlayerNearMountainHealingTree()) {
     hintMessage = 'Montagnes: approche du cerisier sacré pour te soigner';
+  } else if (isPlayerNearFinalBoss() && !finalBoss.isDefeated) {
+    const ph = finalBoss.phase;
+    const phLabel = ph >= 3 ? ' ☠ RAGE' : ph >= 2 ? ' ⚔ Phase II' : '';
+    hintMessage = `Maléficus${phLabel} — E pour frapper ! (${finalBoss.hp}/${finalBoss.maxHp} PV)`;
+  } else if (finalBoss.isDefeated && currentZone === 'Sanctuaire Final') {
+    hintMessage = '🏆 Maléficus vaincu — Le royaume est en paix !';
   } else if (!finalBarrier.isOpen && distanceToFinalBarrier() < 120) {
     hintMessage = mountainBossKey.isCollected
       ? 'Barrière du sanctuaire: appuie sur E'
@@ -1040,13 +1116,16 @@ function draw() {
   drawStarterChest();
   drawFinalBarrier();
   drawFinalBoss();
+  drawFinalBossOrbs();
   drawBarrier();
+  drawMedievalFoyer();
   drawSurvivalResources();
   drawPlayer();
   drawNightOverlay();
   drawMiniMap();
   drawHint();
   drawSurvivalInventoryHUD();
+  if (isVictory) drawVictory();
 }
 
 function drawMountainHealingCherry() {
@@ -1797,6 +1876,199 @@ function drawForestDecor() {
   ctx.restore();
 }
 
+// === FOYER MÉDIÉVAL : s'allume progressivement avec le bois collecté ===
+function drawMedievalFoyer() {
+  const fx = medievalFoyer.x - camera.x;
+  const fy = medievalFoyer.y - camera.y;
+  const time = Date.now() * 0.006;
+
+  const wood = medievalFoyer.woodCount;
+  const stages = medievalFoyer.stages;
+  let stage = 0;
+  for (let i = stages.length - 1; i >= 0; i--) {
+    if (wood >= stages[i]) { stage = i; break; }
+  }
+  // Fraction vers le stage suivant (pour interpolation visuelle)
+  const nextThresh = stages[stage + 1] ?? medievalFoyer.maxWood;
+  const prevThresh = stages[stage];
+  const frac = (nextThresh > prevThresh) ? (wood - prevThresh) / (nextThresh - prevThresh) : 1;
+
+  ctx.save();
+
+  // --- Zone lumineuse projetée au sol (selon intensité du feu) ---
+  if (stage >= 1) {
+    const lightR = 50 + stage * 28 + frac * 14;
+    const alpha = 0.10 + stage * 0.04 + frac * 0.02;
+    const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, lightR);
+    glow.addColorStop(0, `rgba(251, 146, 60, ${(alpha * 2).toFixed(2)})`);
+    glow.addColorStop(0.5, `rgba(234, 88, 12, ${alpha.toFixed(2)})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(fx, fy, lightR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // --- Anneau de pierres ---
+  const stoneCount = 8;
+  for (let i = 0; i < stoneCount; i++) {
+    const angle = (i / stoneCount) * Math.PI * 2;
+    const sx = fx + Math.cos(angle) * 18;
+    const sy = fy + Math.sin(angle) * 13;
+    ctx.fillStyle = '#374151';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 6, 4, angle, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4b5563';
+    ctx.beginPath();
+    ctx.ellipse(sx - 1, sy - 1, 3, 2, angle, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // --- Bûches déposées (selon bois accumulé) ---
+  const logCount = Math.min(wood, 4);
+  for (let i = 0; i < logCount; i++) {
+    const logAngle = (i / 4) * Math.PI - Math.PI / 4;
+    const lx = fx + Math.cos(logAngle) * 10;
+    const ly = fy + Math.sin(logAngle) * 7;
+    ctx.save();
+    ctx.translate(lx, ly);
+    ctx.rotate(logAngle);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(-14, -3, 28, 6);
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(-11, -1, 20, 3);
+    ctx.restore();
+  }
+
+  // --- Cendres (toujours visibles) ---
+  ctx.fillStyle = '#6b7280';
+  ctx.beginPath();
+  ctx.ellipse(fx, fy + 2, 10, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (stage === 0 && wood === 0) {
+    // Foyer vide : tas de cendres froid
+    ctx.fillStyle = '#9ca3af';
+    ctx.beginPath();
+    ctx.ellipse(fx, fy, 7, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Étiquette
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('🪵 Foyer vide — apporte du bois (E)', fx, fy - 26);
+  } else if (stage >= 1) {
+    // --- Fumée ---
+    const smokeCount = 2 + stage;
+    for (let i = 0; i < smokeCount; i++) {
+      const sp = (time * 0.7 + i * 1.2) % 4;
+      const alpha = Math.max(0, 0.28 - sp * 0.07);
+      const smkX = fx + Math.sin(time + i) * 5;
+      const smkY = fy - 24 - sp * 16;
+      const smkR = 4 + sp * 5;
+      ctx.fillStyle = `rgba(156, 163, 175, ${alpha.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(smkX, smkY, smkR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- Flammes progressives ---
+    const flameH = 14 + stage * 9 + frac * 6 + Math.sin(time * 3) * 4;
+    const flameW = 7 + stage * 3 + frac * 2;
+
+    // Flamme extérieure (orange/rouge)
+    const outerGrad = ctx.createLinearGradient(fx, fy, fx, fy - flameH * 1.3);
+    outerGrad.addColorStop(0, `rgba(234, 88, 12, 0.95)`);
+    outerGrad.addColorStop(0.55, '#f97316');
+    outerGrad.addColorStop(1, 'rgba(253, 224, 71, 0)');
+    ctx.fillStyle = outerGrad;
+    ctx.beginPath();
+    ctx.moveTo(fx - flameW, fy);
+    ctx.quadraticCurveTo(
+      fx - flameW * 0.6 + Math.sin(time * 2.1) * 3, fy - flameH * 0.55,
+      fx + Math.sin(time * 1.8) * 4, fy - flameH * 1.3
+    );
+    ctx.quadraticCurveTo(
+      fx + flameW * 0.6 - Math.sin(time * 1.4) * 3, fy - flameH * 0.55,
+      fx + flameW, fy
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // Flamme intérieure (jaune)
+    const innerH = flameH * 0.7;
+    const innerGrad = ctx.createLinearGradient(fx, fy, fx, fy - innerH);
+    innerGrad.addColorStop(0, 'rgba(251, 191, 36, 0.9)');
+    innerGrad.addColorStop(0.6, '#fde68a');
+    innerGrad.addColorStop(1, 'rgba(255, 255, 200, 0)');
+    ctx.fillStyle = innerGrad;
+    ctx.beginPath();
+    ctx.moveTo(fx - flameW * 0.5, fy);
+    ctx.quadraticCurveTo(
+      fx - flameW * 0.2 + Math.sin(time * 2.6) * 2, fy - innerH * 0.6,
+      fx + Math.cos(time * 2.2) * 2, fy - innerH
+    );
+    ctx.quadraticCurveTo(
+      fx + flameW * 0.2 - Math.sin(time * 1.9) * 2, fy - innerH * 0.6,
+      fx + flameW * 0.5, fy
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // Cœur blanc brillant (stade 3+)
+    if (stage >= 3) {
+      ctx.fillStyle = 'rgba(255,255,220,0.7)';
+      ctx.beginPath();
+      ctx.arc(fx, fy - 6, 4 + frac * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- Étincelles ---
+    const sparkCount = stage * 2 + 1;
+    for (let i = 0; i < sparkCount; i++) {
+      const spT = (time * 1.5 + i * 0.9) % 3;
+      const spX = fx + Math.sin(time * 3 + i * 2.3) * (flameW + 4);
+      const spY = fy - 10 - spT * 14;
+      const spA = Math.max(0, 0.9 - spT * 0.35);
+      ctx.fillStyle = `rgba(254, 240, 138, ${spA.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(spX, spY, 1.5 + (1 - spT / 3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Indicateur bois restant
+    const pct = Math.min(wood / medievalFoyer.maxWood, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath();
+    ctx.roundRect(fx - 28, fy - flameH - 30, 56, 10, 4);
+    ctx.fill();
+    ctx.fillStyle = stage >= 4 ? '#fbbf24' : '#f97316';
+    ctx.beginPath();
+    ctx.roundRect(fx - 27, fy - flameH - 29, 54 * pct, 8, 3);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(fx - 28, fy - flameH - 30, 56, 10);
+  }
+
+  // Bois déposé affiché
+  if (wood > 0 && wood < medievalFoyer.maxWood) {
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '11px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(`🪵 ${wood}/${medievalFoyer.maxWood}`, fx, fy + 32);
+  } else if (wood >= medievalFoyer.maxWood) {
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('🔥 Foyer embrasé !', fx, fy + 32);
+  }
+
+  ctx.restore();
+}
+
 function drawFinalTempleDecoration() {
   const originX = finalTempleLayout.x - camera.x;
   const originY = finalTempleLayout.y - camera.y;
@@ -1918,72 +2190,432 @@ function drawFinalGateWall() {
 }
 
 function drawFinalBoss() {
-  const x = finalBoss.x - camera.x;
-  const y = finalBoss.y - camera.y;
-  ctx.fillStyle = '#3f3f46';
-  ctx.fillRect(x + 4, y + 16, 56, 24);
-  ctx.fillStyle = '#52525b';
-  ctx.fillRect(x + 10, y + 10, 40, 12);
+  if (finalBoss.isDefeated) return;
 
-  ctx.fillStyle = '#1f2937';
-  ctx.fillRect(x + 6, y + 38, 8, 14);
-  ctx.fillRect(x + 20, y + 38, 8, 14);
-  ctx.fillRect(x + 38, y + 38, 8, 14);
-  ctx.fillRect(x + 52, y + 38, 8, 14);
+  const bx = finalBoss.x - camera.x;
+  const by = finalBoss.y - camera.y;
+  const cx = bx + finalBoss.w / 2;
+  const cy = by + finalBoss.h / 2;
+  const time = Date.now() * 0.005;
+  const now = Date.now();
+  const isFlashing = now < finalBoss.flashEndTime;
+  const ph = finalBoss.phase;
 
-  ctx.fillStyle = '#71717a';
-  ctx.fillRect(x + 46, y + 6, 18, 18);
-  ctx.fillStyle = '#0f172a';
-  ctx.fillRect(x + 50, y + 10, 10, 5);
-  ctx.fillStyle = '#ef4444';
-  ctx.fillRect(x + 52, y + 16, 6, 6);
+  ctx.save();
 
-  ctx.fillStyle = '#9ca3af';
-  ctx.fillRect(x + 30, y + 4, 14, 16);
-  ctx.fillStyle = '#6b7280';
-  ctx.fillRect(x + 29, y + 2, 16, 3);
-  ctx.fillStyle = '#475569';
-  ctx.fillRect(x + 31, y + 20, 12, 6);
-
-  ctx.fillStyle = '#d4d4d8';
+  // Aura de phase
+  const auraRGBA = [
+    'rgba(0,0,0,0)',
+    'rgba(127,29,29,0.35)',
+    'rgba(185,28,28,0.65)',
+    'rgba(239,68,68,1.0)'
+  ];
+  const auraR = 42 + Math.sin(time * 2.4) * 6;
+  const auraGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, auraR);
+  auraGrad.addColorStop(0, auraRGBA[ph] || 'rgba(0,0,0,0)');
+  auraGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = auraGrad;
   ctx.beginPath();
-  ctx.ellipse(x + 37, y - 2, 10, 12, 0, 0, Math.PI * 2);
+  ctx.arc(cx, cy, auraR, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#111827';
-  ctx.fillRect(x + 32, y - 4, 3, 3);
-  ctx.fillRect(x + 39, y - 4, 3, 3);
-  ctx.fillStyle = '#71717a';
-  ctx.fillRect(x + 34, y + 4, 6, 2);
 
-  ctx.fillStyle = '#9ca3af';
-  ctx.fillRect(x + 17, y + 8, 3, 18);
-  ctx.fillStyle = '#e5e7eb';
-  ctx.fillRect(x + 16, y - 10, 5, 18);
-  ctx.fillStyle = '#cbd5e1';
-  ctx.fillRect(x + 15, y - 12, 7, 3);
+  // Anneaux d'énergie (phase 3)
+  if (ph >= 3) {
+    const ringAngle = time * 2.5;
+    ctx.lineWidth = 2;
+    for (let r = 0; r < 3; r++) {
+      ctx.strokeStyle = `rgba(239,68,68,${0.55 - r * 0.1})`;
+      ctx.save();
+      ctx.translate(cx, cy + 8);
+      ctx.rotate(ringAngle + r * Math.PI * 2 / 3);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 46 + r * 9, 18 + r * 4, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 
-  ctx.strokeStyle = '#6b7280';
-  ctx.lineWidth = 2;
+  // Cape
+  ctx.fillStyle = isFlashing ? '#ffffff' : (ph >= 3 ? '#7f0000' : '#1a0030');
   ctx.beginPath();
-  ctx.moveTo(x + 24, y + 26);
-  ctx.lineTo(x + 30, y + 34);
-  ctx.stroke();
+  ctx.moveTo(bx + 10, by + 18);
+  ctx.lineTo(bx - 6, by + 70 + Math.sin(time) * 5);
+  ctx.lineTo(bx + 28, by + 58);
+  ctx.lineTo(bx + 62, by + 70 + Math.sin(time + 1) * 5);
+  ctx.lineTo(bx + 46, by + 18);
+  ctx.closePath();
+  ctx.fill();
 
-  ctx.fillStyle = '#e5e7eb';
-  ctx.font = '12px Arial';
-  ctx.fillText('Boss final', x - 4, y - 8);
+  // Corps armure
+  ctx.fillStyle = isFlashing ? '#e0e0e0' : '#0f0f12';
+  ctx.fillRect(bx + 12, by + 18, 32, 38);
+
+  // Épaulières
+  ctx.fillStyle = isFlashing ? '#cccccc' : '#1c1c20';
+  ctx.fillRect(bx + 4, by + 18, 14, 10);
+  ctx.fillRect(bx + 38, by + 18, 14, 10);
+
+  // Reflets rouges armure
+  ctx.fillStyle = isFlashing ? 'rgba(200,200,200,0.5)' : 'rgba(220,20,60,0.45)';
+  ctx.fillRect(bx + 14, by + 20, 3, 32);
+  ctx.fillRect(bx + 39, by + 20, 3, 32);
+  ctx.fillRect(bx + 14, by + 33, 28, 3);
+
+  // Jambes
+  ctx.fillStyle = isFlashing ? '#cccccc' : '#0f0f12';
+  ctx.fillRect(bx + 14, by + 54, 12, 18);
+  ctx.fillRect(bx + 30, by + 54, 12, 18);
+  // Genouillères
+  ctx.fillStyle = isFlashing ? '#999' : '#991b1b';
+  ctx.fillRect(bx + 14, by + 57, 12, 5);
+  ctx.fillRect(bx + 30, by + 57, 12, 5);
+
+  // Heaume
+  ctx.fillStyle = isFlashing ? '#e0e0e0' : '#0f0f12';
+  ctx.fillRect(bx + 14, by + 2, 28, 20);
+  // Crête
+  ctx.fillStyle = isFlashing ? '#999' : '#7f1d1d';
+  ctx.fillRect(bx + 18, by - 3, 20, 6);
+  // Visière
+  ctx.fillStyle = '#060606';
+  ctx.fillRect(bx + 17, by + 12, 22, 8);
+  // Yeux rouges lumineux
+  const eyeGlow = 0.7 + Math.sin(time * 4) * 0.3;
+  ctx.fillStyle = isFlashing ? '#ffffff' : `rgba(239,68,68,${eyeGlow.toFixed(2)})`;
+  ctx.fillRect(bx + 20, by + 14, 6, 4);
+  ctx.fillRect(bx + 30, by + 14, 6, 4);
+  if (!isFlashing) {
+    ctx.fillStyle = '#ff1111';
+    ctx.fillRect(bx + 22, by + 14, 3, 4);
+    ctx.fillRect(bx + 32, by + 14, 3, 4);
+  }
+
+  // Épée (bras droit) – oscille selon phase
+  ctx.save();
+  ctx.translate(bx + 52, by + 26);
+  const swordSwing = ph >= 3
+    ? -0.4 + Math.sin(time * 5.5) * 0.28
+    : -0.18 + Math.sin(time * 1.8) * 0.1;
+  ctx.rotate(swordSwing);
+  ctx.fillStyle = isFlashing ? '#999' : '#4b2a0a';
+  ctx.fillRect(-4, 10, 8, 18);
+  ctx.fillStyle = isFlashing ? '#bbb' : '#92400e';
+  ctx.fillRect(-9, 8, 18, 5);
+  ctx.fillStyle = isFlashing ? '#e0e0e0' : '#e2e8f0';
+  ctx.beginPath();
+  ctx.moveTo(-4, -46);
+  ctx.lineTo(4, -46);
+  ctx.lineTo(6, 8);
+  ctx.lineTo(-6, 8);
+  ctx.closePath();
+  ctx.fill();
+  // Reflet lame rouge/violet
+  ctx.fillStyle = isFlashing ? 'rgba(200,200,200,0.5)' : `rgba(${ph >= 3 ? '220,20,60' : '139,92,246'},${0.4 + Math.sin(time * 3) * 0.2})`;
+  ctx.fillRect(-1, -42, 2, 46);
+  ctx.restore();
+
+  // Bras gauche: bouclier (phase 1-2) ou 2e épée (phase 3)
+  if (ph <= 2) {
+    ctx.fillStyle = isFlashing ? '#999' : '#7f1d1d';
+    ctx.beginPath();
+    ctx.moveTo(bx + 5, by + 22);
+    ctx.lineTo(bx - 8, by + 28);
+    ctx.lineTo(bx - 8, by + 42);
+    ctx.lineTo(bx + 5, by + 48);
+    ctx.lineTo(bx + 14, by + 48);
+    ctx.lineTo(bx + 14, by + 22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = isFlashing ? '#777' : '#ef4444';
+    ctx.fillRect(bx - 1, by + 29, 5, 12);
+    ctx.fillRect(bx - 5, by + 33, 13, 3);
+  } else {
+    ctx.save();
+    ctx.translate(bx + 4, by + 26);
+    ctx.rotate(0.32 + Math.sin(time * 6 + 1) * 0.3);
+    ctx.fillStyle = isFlashing ? '#e0e0e0' : '#e2e8f0';
+    ctx.beginPath();
+    ctx.moveTo(-3, -38);
+    ctx.lineTo(3, -38);
+    ctx.lineTo(5, 8);
+    ctx.lineTo(-5, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = isFlashing ? 'rgba(180,180,180,0.5)' : 'rgba(168,85,247,0.55)';
+    ctx.fillRect(-1, -34, 2, 38);
+    ctx.fillStyle = isFlashing ? '#999' : '#92400e';
+    ctx.fillRect(-8, 6, 16, 5);
+    ctx.restore();
+  }
+
+  // Laser beam (phase 3)
+  if (finalBoss.isLasering) {
+    const angle = finalBoss.laserAngle;
+    const len = 360;
+    const ex = cx + Math.cos(angle) * len;
+    const ey = cy + Math.sin(angle) * len;
+    const laserGrad = ctx.createLinearGradient(cx, cy, ex, ey);
+    laserGrad.addColorStop(0, 'rgba(239,68,68,0.95)');
+    laserGrad.addColorStop(0.45, 'rgba(253,224,71,0.85)');
+    laserGrad.addColorStop(1, 'rgba(239,68,68,0)');
+    ctx.strokeStyle = laserGrad;
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+
+  // Barre de vie
+  const hpRatio = finalBoss.maxHp > 0 ? finalBoss.hp / finalBoss.maxHp : 0;
+  const barW = 84;
+  const barX = cx - barW / 2;
+  const barY = by - 24;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(barX - 2, barY - 2, barW + 4, 14);
+  const phaseBarColors = ['', '#22c55e', '#f59e0b', '#ef4444'];
+  ctx.fillStyle = phaseBarColors[ph] || '#ef4444';
+  ctx.fillRect(barX, barY, barW * hpRatio, 10);
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX - 2, barY - 2, barW + 4, 14);
+
+  // Nom au-dessus
+  const phaseLabels = ['', '', ' ⚔ Phase II', ' ☠ RAGE'];
+  ctx.fillStyle = ph >= 3 ? '#ef4444' : '#f8fafc';
+  ctx.font = 'bold 12px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Maléficus${phaseLabels[ph] || ''}`, cx, barY - 6);
+  ctx.textAlign = 'left';
+
+  ctx.restore();
 }
 
 function updateFinalBoss() {
-  finalBoss.x += finalBoss.dirX * finalBoss.speed;
-  finalBoss.y += finalBoss.dirY * finalBoss.speed;
+  if (finalBoss.isDefeated) return;
 
-  if (finalBoss.x < finalBoss.minX || finalBoss.x > finalBoss.maxX) {
-    finalBoss.dirX *= -1;
+  const now = Date.now();
+  const bcx = finalBoss.x + finalBoss.w / 2;
+  const bcy = finalBoss.y + finalBoss.h / 2;
+  const px = player.x + player.width / 2;
+  const py = player.y + player.height / 2;
+  const dist = Math.hypot(px - bcx, py - bcy);
+
+  // Only engage when player is in the final zone
+  if (currentZone !== 'Sanctuaire Final') return;
+
+  // --- Determine phase ---
+  const hpPct = finalBoss.maxHp > 0 ? finalBoss.hp / finalBoss.maxHp : 0;
+  const prevPhase = finalBoss.phase;
+  if      (hpPct > 0.65) finalBoss.phase = 1;
+  else if (hpPct > 0.30) finalBoss.phase = 2;
+  else                    finalBoss.phase = 3;
+  if (finalBoss.phase > prevPhase) finalBoss.enrageTime = now;
+
+  const speeds        = [0, 1.4, 2.1, 3.0];
+  const orbCooldowns  = [0, 2400, 1500, 900];
+  const dashCooldowns = [0, 1e9,  4200, 2600];
+  const laserCooldowns= [0, 1e9,  1e9,  5500];
+  const spd = speeds[finalBoss.phase];
+
+  // --- DASH ---
+  if (finalBoss.isDashing) {
+    finalBoss.x += finalBoss.dashVX * 6.5;
+    finalBoss.y += finalBoss.dashVY * 6.5;
+    finalBoss.x = clamp(finalBoss.x, finalBoss.minX, finalBoss.maxX);
+    finalBoss.y = clamp(finalBoss.y, finalBoss.minY, finalBoss.maxY);
+    if (now - finalBoss.dashStartTime > finalBoss.dashDurationMs) {
+      finalBoss.isDashing = false;
+    }
+  } else if (!finalBoss.isLasering) {
+    // Poursuite du joueur
+    if (dist > 2) {
+      finalBoss.x += ((px - bcx) / dist) * spd;
+      finalBoss.y += ((bcy < py ? 1 : -1) * Math.abs((py - bcy) / dist)) * spd * 0.6 + ((py - bcy) / dist) * spd * 0.4;
+      finalBoss.x = clamp(finalBoss.x, finalBoss.minX, finalBoss.maxX);
+      finalBoss.y = clamp(finalBoss.y, finalBoss.minY, finalBoss.maxY);
+    }
+    // Déclencher dash
+    if (finalBoss.phase >= 2 &&
+        now - finalBoss.lastDashTime > dashCooldowns[finalBoss.phase] &&
+        dist < 400) {
+      const len = Math.hypot(px - bcx, py - bcy) || 1;
+      finalBoss.dashVX = (px - bcx) / len;
+      finalBoss.dashVY = (py - bcy) / len;
+      finalBoss.isDashing = true;
+      finalBoss.dashStartTime = now;
+      finalBoss.lastDashTime = now;
+    }
   }
-  if (finalBoss.y < finalBoss.minY || finalBoss.y > finalBoss.maxY) {
-    finalBoss.dirY *= -1;
+
+  // --- ORB ATTACK ---
+  if (now - finalBoss.lastOrbTime > orbCooldowns[finalBoss.phase]) {
+    const newBcx = finalBoss.x + finalBoss.w / 2;
+    const newBcy = finalBoss.y + finalBoss.h / 2;
+    const baseAngle = Math.atan2(py - newBcy, px - newBcx);
+    const orbSpeed = 2.7 + finalBoss.phase * 0.45;
+    const counts = [0, 1, 3, 5];
+    const count = counts[finalBoss.phase];
+    const spread = 0.30;
+    const half = Math.floor(count / 2);
+    for (let i = -half; i <= half; i++) {
+      const angle = baseAngle + i * spread;
+      finalBossOrbs.push({
+        x: newBcx, y: newBcy,
+        vx: Math.cos(angle) * orbSpeed,
+        vy: Math.sin(angle) * orbSpeed,
+        r: 8, phase: finalBoss.phase
+      });
+    }
+    finalBoss.lastOrbTime = now;
   }
+
+  // --- LASER (phase 3 only) ---
+  if (finalBoss.phase === 3 && !finalBoss.isLasering &&
+      now - finalBoss.lastLaserTime > laserCooldowns[3]) {
+    finalBoss.isLasering = true;
+    finalBoss.laserStartTime = now;
+    const newBcx2 = finalBoss.x + finalBoss.w / 2;
+    const newBcy2 = finalBoss.y + finalBoss.h / 2;
+    finalBoss.laserAngle = Math.atan2(py - newBcy2, px - newBcx2);
+    finalBoss.lastLaserTime = now;
+    finalBoss.lastLaserHitTime = 0;
+  }
+
+  if (finalBoss.isLasering) {
+    finalBoss.laserAngle += 0.025;
+    if (now - finalBoss.laserStartTime > finalBoss.laserDurationMs) {
+      finalBoss.isLasering = false;
+    }
+    // Dégâts laser sur le joueur
+    if (now - finalBoss.lastLaserHitTime > 250) {
+      const lbx = finalBoss.x + finalBoss.w / 2;
+      const lby = finalBoss.y + finalBoss.h / 2;
+      const lx = Math.cos(finalBoss.laserAngle) * 360;
+      const ly = Math.sin(finalBoss.laserAngle) * 360;
+      const lenSq = lx * lx + ly * ly;
+      const t = clamp(((px - lbx) * lx + (py - lby) * ly) / lenSq, 0, 1);
+      const closestX = lbx + t * lx;
+      const closestY = lby + t * ly;
+      if (Math.hypot(px - closestX, py - closestY) < 18) {
+        player.health -= 3;
+        player.health = clamp(player.health, 0, player.maxHealth);
+        finalBoss.lastLaserHitTime = now;
+      }
+    }
+  }
+}
+
+function updateFinalBossOrbs() {
+  const px = player.x + player.width / 2;
+  const py = player.y + player.height / 2;
+  for (let i = finalBossOrbs.length - 1; i >= 0; i--) {
+    const orb = finalBossOrbs[i];
+    orb.x += orb.vx;
+    orb.y += orb.vy;
+    // Supprimer si hors du monde
+    if (orb.x < finalZone.x - 100 || orb.x > WORLD_WIDTH + 100 ||
+        orb.y < -100 || orb.y > WORLD_HEIGHT + 100) {
+      finalBossOrbs.splice(i, 1);
+      continue;
+    }
+    // Collision joueur
+    if (Math.hypot(px - orb.x, py - orb.y) < orb.r + 14) {
+      player.health -= 4;
+      player.health = clamp(player.health, 0, player.maxHealth);
+      const angle = Math.atan2(py - orb.y, px - orb.x);
+      player.x += Math.cos(angle) * 22;
+      player.y += Math.sin(angle) * 22;
+      finalBossOrbs.splice(i, 1);
+    }
+  }
+}
+
+function drawFinalBossOrbs() {
+  finalBossOrbs.forEach(orb => {
+    const x = orb.x - camera.x;
+    const y = orb.y - camera.y;
+    const pulse = Math.sin(Date.now() * 0.008 + orb.x * 0.01) * 2;
+    // Lueur
+    ctx.fillStyle = orb.phase >= 3 ? 'rgba(220,38,38,0.35)' : 'rgba(124,58,237,0.35)';
+    ctx.beginPath();
+    ctx.arc(x, y, orb.r + 7 + pulse, 0, Math.PI * 2);
+    ctx.fill();
+    // Corps
+    const g = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, orb.r + 2 + pulse);
+    g.addColorStop(0, '#f8fafc');
+    g.addColorStop(0.35, orb.phase >= 3 ? '#ef4444' : '#a78bfa');
+    g.addColorStop(1, orb.phase >= 3 ? 'rgba(185,28,28,0)' : 'rgba(109,40,217,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, orb.r + pulse, 0, Math.PI * 2);
+    ctx.fill();
+    // Noyau
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(x - 2, y - 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function tryHitFinalBoss() {
+  if (finalBoss.isDefeated) return false;
+  if (!isPlayerNearFinalBoss()) return false;
+  const now = Date.now();
+  if (now - finalBoss.lastHitTime < finalBoss.invincibleMs) {
+    hintMessage = '⚡ Boss invincible ! Recule et reprends.';
+    return true;
+  }
+  finalBoss.hp -= 1;
+  finalBoss.lastHitTime = now;
+  finalBoss.flashEndTime = now + finalBoss.invincibleMs;
+  if (finalBoss.hp <= 0) {
+    finalBoss.hp = 0;
+    finalBoss.isDefeated = true;
+    isVictory = true;
+    finalBossOrbs.length = 0;
+    hintMessage = '🏆 Maléficus vaincu ! Le royaume est libéré !';
+  } else {
+    const ph = finalBoss.phase;
+    const label = ph >= 3 ? ' [☠ RAGE]' : ph >= 2 ? ' [Phase 2]' : '';
+    hintMessage = `Maléficus${label} touché ! (${finalBoss.hp}/${finalBoss.maxHp} PV)`;
+  }
+  return true;
+}
+
+function isPlayerNearFinalBoss() {
+  if (finalBoss.isDefeated) return false;
+  return Math.hypot(
+    (player.x + player.width / 2)  - (finalBoss.x + finalBoss.w / 2),
+    (player.y + player.height / 2) - (finalBoss.y + finalBoss.h / 2)
+  ) < 90;
+}
+
+function drawVictory() {
+  ctx.fillStyle = 'rgba(0,0,0,0.82)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const pulse = (Math.sin(Date.now() * 0.003) + 1) / 2;
+  ctx.fillStyle = `rgba(251,191,36,${(0.85 + pulse * 0.15).toFixed(2)})`;
+  ctx.font = 'bold 68px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚔  VICTOIRE  ⚔', canvas.width / 2, canvas.height / 2 - 60);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '26px Arial';
+  ctx.fillText('Maléficus a été vaincu !', canvas.width / 2, canvas.height / 2 - 8);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '18px Arial';
+  ctx.fillText(`Jour ${survival.day} — Tu as libéré le royaume des ténèbres.`, canvas.width / 2, canvas.height / 2 + 38);
+  ctx.fillStyle = `rgba(251,191,36,${(0.6 + pulse * 0.4).toFixed(2)})`;
+  ctx.font = 'bold 20px Arial';
+  ctx.fillText('Appuie sur R pour rejouer', canvas.width / 2, canvas.height / 2 + 110);
+  ctx.textAlign = 'left';
 }
 
 function drawForestTrees() {
@@ -3513,7 +4145,40 @@ function distanceToBarrier() {
   return Math.hypot(centerX - barrierCenterX, centerY - barrierCenterY);
 }
 
+function distanceToFoyer() {
+  const cx = player.x + player.width / 2;
+  const cy = player.y + player.height / 2;
+  return Math.hypot(cx - medievalFoyer.x, cy - medievalFoyer.y);
+}
+
+function tryDepositWoodAtFoyer() {
+  if (distanceToFoyer() > 64) return false;
+  if (medievalFoyer.woodCount >= medievalFoyer.maxWood) {
+    hintMessage = '🔥 Foyer déjà embrasé !';
+    return true;
+  }
+  if (survivalInventory.wood <= 0) {
+    hintMessage = '🪵 Tu n\'as pas de bois — ramasse-en dans la forêt (E)';
+    return true;
+  }
+  // Déposer 1 bûche à la fois
+  survivalInventory.wood--;
+  medievalFoyer.woodCount++;
+  syncResourceInventory(false);
+  const stage = [...medievalFoyer.stages].reverse().findIndex(t => medievalFoyer.woodCount >= t);
+  const stageNum = medievalFoyer.stages.length - 1 - stage;
+  const stageLabels = ['', 'Des braises s\'allument…', 'Une petite flamme vacille !', 'Le feu prend bien !', '🔥 Feu de camp médiéval embrasé !'];
+  hintMessage = stageLabels[stageNum] || `Bois : ${medievalFoyer.woodCount}/${medievalFoyer.maxWood}`;
+  return true;
+}
+
 function handleInteract() {
+  if (tryDepositWoodAtFoyer()) {
+    return;
+  }
+  if (tryHitFinalBoss()) {
+    return;
+  }
   if (tryOpenStarterChest()) {
     return;
   }
@@ -4494,6 +5159,31 @@ function drawNightOverlay() {
     ctx.fill();
     ctx.globalCompositeOperation = 'source-over';
   });
+
+  // Lumière du foyer médiéval (proportionnelle à l'intensité du feu)
+  if (medievalFoyer.woodCount > 0) {
+    const fx = medievalFoyer.x - camera.x;
+    const fy = medievalFoyer.y - camera.y;
+    const stages = medievalFoyer.stages;
+    let stage = 0;
+    for (let i = stages.length - 1; i >= 0; i--) {
+      if (medievalFoyer.woodCount >= stages[i]) { stage = i; break; }
+    }
+    const flicker = Math.sin(Date.now() * 0.008) * 0.05;
+    const lightR = 80 + stage * 40;
+    const intensity = 0.18 + stage * 0.10 + flicker;
+    const foyerLight = ctx.createRadialGradient(fx, fy, 0, fx, fy, lightR);
+    foyerLight.addColorStop(0, `rgba(251, 191, 36, ${(intensity * 2.2).toFixed(2)})`);
+    foyerLight.addColorStop(0.35, `rgba(234, 88, 12, ${intensity.toFixed(2)})`);
+    foyerLight.addColorStop(0.7, `rgba(120, 40, 0, ${(intensity * 0.4).toFixed(2)})`);
+    foyerLight.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = foyerLight;
+    ctx.beginPath();
+    ctx.arc(fx, fy, lightR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
   
   // Légère lumière autour du joueur
   const px = player.x + player.width / 2 - camera.x;
@@ -4542,16 +5232,19 @@ function checkEnemyCollision() {
     }
   }
   
-  // Collision avec le boss final
-  const finalBossCenterX = finalBoss.x + finalBoss.w / 2;
-  const finalBossCenterY = finalBoss.y + finalBoss.h / 2;
-  const finalDist = Math.hypot(centerX - finalBossCenterX, centerY - finalBossCenterY);
-  
-  if (finalDist < 50 && currentZone === 'Sanctuaire Final') {
-    player.health -= 1.2;
-    const angle = Math.atan2(centerY - finalBossCenterY, centerX - finalBossCenterX);
-    player.x += Math.cos(angle) * 5;
-    player.y += Math.sin(angle) * 5;
+  // Collision avec le boss final (cooldown-based, knockback fort)
+  if (!finalBoss.isDefeated && currentZone === 'Sanctuaire Final') {
+    const now = Date.now();
+    const fbcx = finalBoss.x + finalBoss.w / 2;
+    const fbcy = finalBoss.y + finalBoss.h / 2;
+    const fd = Math.hypot(centerX - fbcx, centerY - fbcy);
+    if (fd < 44 && now - finalBoss.lastContactTime > finalBoss.contactCooldownMs) {
+      player.health -= finalBoss.contactDamage;
+      finalBoss.lastContactTime = now;
+      const angle = Math.atan2(centerY - fbcy, centerX - fbcx);
+      player.x += Math.cos(angle) * 26;
+      player.y += Math.sin(angle) * 26;
+    }
   }
   
   player.health = clamp(player.health, 0, player.maxHealth);
@@ -4576,6 +5269,12 @@ function drawSurvivalInventoryHUD() {
 function gameLoop() {
   if (!gameStarted) return;
   
+  if (isVictory) {
+    draw();
+    requestAnimationFrame(gameLoop);
+    return;
+  }
+
   if (isGameOver) {
     drawGameOver();
     requestAnimationFrame(gameLoop);
@@ -4636,6 +5335,7 @@ function drawGameOver() {
 function restartGame() {
   isGameOver = false;
   gameOverReason = '';
+  isVictory = false;
   gameStarted = false;
   characterScreen.classList.remove('hidden');
   gameScreen.classList.add('hidden');
@@ -4643,7 +5343,7 @@ function restartGame() {
 
 // Écouter la touche R pour recommencer
 window.addEventListener('keydown', (event) => {
-  if (event.key.toLowerCase() === 'r' && isGameOver) {
+  if (event.key.toLowerCase() === 'r' && (isGameOver || isVictory)) {
     restartGame();
   }
 });
