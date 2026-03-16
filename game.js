@@ -399,7 +399,11 @@ const forestChests = [
     w: 36,
     h: 26,
     isOpened: false,
-    loot: ['Bois ancien', 'Potion verte']
+    loot: [
+      { id: 'wood', quantity: 2 },
+      { id: 'stone', quantity: 1 },
+      { id: 'bandage', quantity: 1 }
+    ]
   },
   {
     x: 1200,
@@ -407,7 +411,11 @@ const forestChests = [
     w: 36,
     h: 26,
     isOpened: false,
-    loot: ['Arc court', 'Flèches x10']
+    loot: [
+      { id: 'cookedMeat', quantity: 2 },
+      { id: 'waterFlask', quantity: 1 },
+      { id: 'healingPotion', quantity: 1 }
+    ]
   },
   {
     x: 1400,
@@ -415,7 +423,11 @@ const forestChests = [
     w: 36,
     h: 26,
     isOpened: false,
-    loot: ['Gemme forêt', 'Bandages']
+    loot: [
+      { id: 'berries', quantity: 3 },
+      { id: 'bandage', quantity: 2 },
+      { id: 'wood', quantity: 1 }
+    ]
   }
 ];
 
@@ -661,6 +673,102 @@ const player = {
   hasStarterPotions: false
 };
 
+const inventoryCategoryOrder = {
+  equipment: 0,
+  consumable: 1,
+  resource: 2,
+  quest: 3
+};
+
+const inventoryCategoryLabels = {
+  equipment: 'Equipement',
+  consumable: 'Consommable',
+  resource: 'Ressource',
+  quest: 'Quete'
+};
+
+const inventoryItemDefinitions = {
+  shortSword: {
+    label: 'Hache courte',
+    category: 'equipment',
+    description: '+15 Force. Equipee automatiquement.',
+    stackable: false
+  },
+  noviceStaff: {
+    label: 'Baton novice',
+    category: 'equipment',
+    description: '+18 Mage. Equipe automatiquement.',
+    stackable: false
+  },
+  roundShield: {
+    label: 'Bouclier rond',
+    category: 'equipment',
+    description: '+20 PV max. Equipe automatiquement.',
+    stackable: false
+  },
+  bandage: {
+    label: 'Bandage',
+    category: 'consumable',
+    description: 'Rend 25 PV.',
+    stackable: true,
+    useLabel: 'Soigner'
+  },
+  healingPotion: {
+    label: 'Potion de soin',
+    category: 'consumable',
+    description: 'Rend 45 PV.',
+    stackable: true,
+    useLabel: 'Boire'
+  },
+  waterFlask: {
+    label: 'Gourde',
+    category: 'consumable',
+    description: 'Restaure 35 de soif.',
+    stackable: true,
+    useLabel: 'Boire'
+  },
+  berries: {
+    label: 'Baies',
+    category: 'resource',
+    description: 'Restaure 15 de faim.',
+    stackable: true,
+    useLabel: 'Manger'
+  },
+  cookedMeat: {
+    label: 'Viande cuite',
+    category: 'resource',
+    description: 'Restaure 40 de faim.',
+    stackable: true,
+    useLabel: 'Manger'
+  },
+  wood: {
+    label: 'Bois',
+    category: 'resource',
+    description: 'Sert a poser un feu de camp.',
+    stackable: true
+  },
+  stone: {
+    label: 'Pierre',
+    category: 'resource',
+    description: 'Sert a poser un feu de camp.',
+    stackable: true
+  },
+  bossKey: {
+    label: 'Cle du boss',
+    category: 'quest',
+    description: 'Ouvre la barriere du sanctuaire final.',
+    stackable: false
+  }
+};
+
+const resourceInventoryBindings = {
+  wood: 'wood',
+  stone: 'stone',
+  berries: 'berries',
+  cookedMeat: 'cookedMeat',
+  waterFlask: 'water'
+};
+
 const camera = {
   x: 0,
   y: 0
@@ -770,6 +878,7 @@ function startGame(choice) {
   survivalInventory.berries = 3;
   survivalInventory.rawMeat = 0;
   survivalInventory.cookedMeat = 0;
+  survivalInventory.water = 1;
   
   forestChests.forEach((chest) => {
     chest.isOpened = false;
@@ -1811,151 +1920,58 @@ function drawFinalGateWall() {
 function drawFinalBoss() {
   const x = finalBoss.x - camera.x;
   const y = finalBoss.y - camera.y;
-  const time = Date.now() * 0.003;
-  const float = Math.sin(time) * 2;
+  ctx.fillStyle = '#3f3f46';
+  ctx.fillRect(x + 4, y + 16, 56, 24);
+  ctx.fillStyle = '#52525b';
+  ctx.fillRect(x + 10, y + 10, 40, 12);
 
-  // === SORCIER VERT PIXEL ART ===
-  
-  // Particules magiques vertes (à gauche)
-  ctx.fillStyle = '#4ade80';
-  const sparkleOffset = Math.sin(time * 2) * 3;
-  ctx.beginPath();
-  ctx.arc(x - 20 + sparkleOffset, y + 10 + float, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x - 28, y + 5 + float * 0.5, 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x - 24 - sparkleOffset, y + 18 + float, 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#86efac';
-  ctx.beginPath();
-  ctx.arc(x - 32, y + 12 + float * 0.7, 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x - 18, y + 2 + float, 2, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(x + 6, y + 38, 8, 14);
+  ctx.fillRect(x + 20, y + 38, 8, 14);
+  ctx.fillRect(x + 38, y + 38, 8, 14);
+  ctx.fillRect(x + 52, y + 38, 8, 14);
 
-  // Bâton magique (à droite)
-  ctx.fillStyle = '#5c3d2e';
-  ctx.fillRect(x + 38, y - 10 + float, 4, 55);
-  // Tête du bâton (orbe)
-  ctx.fillStyle = '#7c2d12';
-  ctx.beginPath();
-  ctx.arc(x + 40, y - 14 + float, 8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#dc2626';
-  ctx.beginPath();
-  ctx.arc(x + 40, y - 14 + float, 5, 0, Math.PI * 2);
-  ctx.fill();
-  // Reflet
-  ctx.fillStyle = '#fca5a5';
-  ctx.beginPath();
-  ctx.arc(x + 38, y - 16 + float, 2, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = '#71717a';
+  ctx.fillRect(x + 46, y + 6, 18, 18);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(x + 50, y + 10, 10, 5);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(x + 52, y + 16, 6, 6);
 
-  // Chapeau pointu vert
-  // Base du chapeau
-  ctx.fillStyle = '#15803d';
-  ctx.fillRect(x + 2, y - 20 + float, 36, 8);
-  // Bande dorée
-  ctx.fillStyle = '#eab308';
-  ctx.fillRect(x + 4, y - 14 + float, 32, 4);
-  // Partie principale du chapeau
-  ctx.fillStyle = '#22c55e';
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillRect(x + 30, y + 4, 14, 16);
+  ctx.fillStyle = '#6b7280';
+  ctx.fillRect(x + 29, y + 2, 16, 3);
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(x + 31, y + 20, 12, 6);
+
+  ctx.fillStyle = '#d4d4d8';
   ctx.beginPath();
-  ctx.moveTo(x + 6, y - 20 + float);
-  ctx.lineTo(x + 20, y - 55 + float);
-  ctx.lineTo(x + 34, y - 20 + float);
-  ctx.closePath();
+  ctx.ellipse(x + 37, y - 2, 10, 12, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Pointe courbée
-  ctx.fillStyle = '#22c55e';
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(x + 32, y - 4, 3, 3);
+  ctx.fillRect(x + 39, y - 4, 3, 3);
+  ctx.fillStyle = '#71717a';
+  ctx.fillRect(x + 34, y + 4, 6, 2);
+
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillRect(x + 17, y + 8, 3, 18);
+  ctx.fillStyle = '#e5e7eb';
+  ctx.fillRect(x + 16, y - 10, 5, 18);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(x + 15, y - 12, 7, 3);
+
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(x + 20, y - 55 + float);
-  ctx.quadraticCurveTo(x + 30, y - 60 + float, x + 35, y - 50 + float);
-  ctx.lineTo(x + 28, y - 48 + float);
-  ctx.quadraticCurveTo(x + 26, y - 52 + float, x + 20, y - 55 + float);
-  ctx.fill();
-  // Ombre sur le chapeau
-  ctx.fillStyle = '#15803d';
-  ctx.beginPath();
-  ctx.moveTo(x + 24, y - 20 + float);
-  ctx.lineTo(x + 20, y - 50 + float);
-  ctx.lineTo(x + 34, y - 20 + float);
-  ctx.closePath();
-  ctx.fill();
+  ctx.moveTo(x + 24, y + 26);
+  ctx.lineTo(x + 30, y + 34);
+  ctx.stroke();
 
-  // Cheveux noirs (sous le chapeau)
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(x + 6, y - 12 + float, 28, 8);
-
-  // Visage (peau claire)
-  ctx.fillStyle = '#fcd9b6';
-  ctx.fillRect(x + 10, y - 6 + float, 20, 14);
-  
-  // Yeux
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(x + 13, y - 2 + float, 4, 3);
-  ctx.fillRect(x + 23, y - 2 + float, 4, 3);
-
-  // Robe verte (corps)
-  ctx.fillStyle = '#22c55e';
-  ctx.fillRect(x + 6, y + 8 + float, 28, 30);
-  // Centre de la robe (noir)
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(x + 14, y + 8 + float, 12, 30);
-  
-  // Bras gauche (avec manche verte)
-  ctx.fillStyle = '#22c55e';
-  ctx.fillRect(x - 8, y + 8 + float, 16, 10);
-  ctx.beginPath();
-  ctx.moveTo(x - 8, y + 18 + float);
-  ctx.lineTo(x - 16, y + 24 + float);
-  ctx.lineTo(x - 10, y + 26 + float);
-  ctx.lineTo(x, y + 18 + float);
-  ctx.closePath();
-  ctx.fill();
-  // Main gauche
-  ctx.fillStyle = '#fcd9b6';
-  ctx.fillRect(x - 18, y + 20 + float, 6, 6);
-
-  // Bras droit (tenant le bâton)
-  ctx.fillStyle = '#22c55e';
-  ctx.fillRect(x + 32, y + 8 + float, 12, 10);
-  ctx.fillRect(x + 36, y + 16 + float, 8, 12);
-  // Main droite
-  ctx.fillStyle = '#fcd9b6';
-  ctx.fillRect(x + 36, y + 26 + float, 8, 6);
-
-  // Bas de la robe (évasé)
-  ctx.fillStyle = '#22c55e';
-  ctx.beginPath();
-  ctx.moveTo(x + 4, y + 38 + float);
-  ctx.lineTo(x - 4, y + 52 + float);
-  ctx.lineTo(x + 44, y + 52 + float);
-  ctx.lineTo(x + 36, y + 38 + float);
-  ctx.closePath();
-  ctx.fill();
-  // Centre bas noir
-  ctx.fillStyle = '#1a1a1a';
-  ctx.beginPath();
-  ctx.moveTo(x + 14, y + 38 + float);
-  ctx.lineTo(x + 10, y + 52 + float);
-  ctx.lineTo(x + 30, y + 52 + float);
-  ctx.lineTo(x + 26, y + 38 + float);
-  ctx.closePath();
-  ctx.fill();
-
-  // Pieds
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(x + 4, y + 50 + float, 12, 6);
-  ctx.fillRect(x + 24, y + 50 + float, 12, 6);
-
-  // Label
-  ctx.fillStyle = '#22c55e';
-  ctx.font = 'bold 12px Arial';
-  ctx.fillText('Sorcier Maléfique', x - 15, y - 62 + float);
+  ctx.fillStyle = '#e5e7eb';
+  ctx.font = '12px Arial';
+  ctx.fillText('Boss final', x - 4, y - 8);
 }
 
 function updateFinalBoss() {
@@ -3584,7 +3600,7 @@ function tryCollectMountainBossKey() {
   if (!isPlayerNearMountainBossKey()) return false;
 
   mountainBossKey.isCollected = true;
-  addItemsToInventory(['Clé du boss']);
+  addItemsToInventory([{ id: 'bossKey', quantity: 1 }]);
   hintMessage = 'Clé du boss récupérée';
   return true;
 }
@@ -3651,16 +3667,21 @@ function tryOpenStarterChest() {
 
   starterChest.isOpened = true;
   if (selectedClass === 'sorcier') {
-    player.hasStarterWeapon = true;
-    player.hasStarterPotions = true;
-    addItemsToInventory(['Bâton novice', 'Potions x2']);
+    addItemsToInventory([
+      { id: 'noviceStaff', quantity: 1 },
+      { id: 'healingPotion', quantity: 2 },
+      { id: 'waterFlask', quantity: 1 }
+    ]);
   } else {
-    player.hasStarterWeapon = true;
-    player.hasStarterShield = true;
-    addItemsToInventory(['Épée courte', 'Bouclier rond']);
+    addItemsToInventory([
+      { id: 'shortSword', quantity: 1 },
+      { id: 'roundShield', quantity: 1 },
+      { id: 'bandage', quantity: 1 },
+      { id: 'cookedMeat', quantity: 1 }
+    ]);
   }
 
-  hintMessage = 'Coffre ouvert: équipement récupéré';
+  hintMessage = 'Coffre ouvert: equipement et provisions recuperes';
   return true;
 }
 
@@ -3672,7 +3693,7 @@ function tryOpenForestChest() {
 
   nearbyChest.isOpened = true;
   addItemsToInventory(nearbyChest.loot);
-  hintMessage = 'Coffre de forêt ouvert: butin ajouté';
+  hintMessage = 'Coffre de foret ouvert: provisions ajoutees';
   return true;
 }
 
@@ -3729,54 +3750,307 @@ function closeInventory() {
 }
 
 function buildInventory(choice) {
-  const wizardItems = [
-    'Livre de sort',
-    'Cristal arcanique',
-    'Cape runique',
-    'Parchemin de soin',
-    'Clé du temple',
-    'Herbes sacrées',
-    'Encens',
-    'Bourse'
-  ];
-
-  const barbarianItems = [
-    'Hache lourde',
-    'Ration de viande',
-    'Pierre à feu',
-    'Corde robuste',
-    'Totem de guerre',
-    'Potion de rage',
-    'Clé du temple',
-    'Bandages',
-    'Torche'
-  ];
-
-  inventoryItems = [...(choice === 'sorcier' ? wizardItems : barbarianItems)];
+  inventoryItems = [];
   inventoryTitle.textContent = `Inventaire ${choice === 'sorcier' ? 'du Sorcier' : 'du Barbare'}`;
+  syncResourceInventory(false);
   renderInventory();
 }
 
 function addItemsToInventory(items) {
-  items.forEach((item) => {
-    if (!inventoryItems.includes(item)) {
-      inventoryItems.push(item);
+  let shouldSyncResources = false;
+
+  items.forEach((rawItem) => {
+    const item = normalizeInventoryItem(rawItem);
+    if (!item) {
+      return;
     }
+
+    const resourceKey = resourceInventoryBindings[item.id];
+    if (resourceKey) {
+      survivalInventory[resourceKey] = (survivalInventory[resourceKey] || 0) + item.quantity;
+      shouldSyncResources = true;
+      return;
+    }
+
+    addInventoryItem(item.id, item.quantity, false);
   });
+
+  if (shouldSyncResources) {
+    syncResourceInventory(false);
+  }
+
+  updatePlayerInventoryFlags();
   renderInventory();
 }
 
 function renderInventory() {
   inventoryGrid.innerHTML = '';
+  sortInventoryItems();
+
   inventoryItems.forEach((item) => {
+    const definition = inventoryItemDefinitions[item.id];
+    if (!definition) {
+      return;
+    }
+
     const slot = document.createElement('div');
     slot.className = 'inventory-slot';
-    const label = document.createElement('span');
-    label.className = 'inventory-item';
-    label.textContent = item;
+
+    const category = document.createElement('span');
+    category.className = 'inventory-category';
+    category.textContent = inventoryCategoryLabels[definition.category] || 'Objet';
+
+    const label = document.createElement('strong');
+    label.className = 'inventory-name';
+    label.textContent = definition.label;
+
+    const description = document.createElement('span');
+    description.className = 'inventory-desc';
+    description.textContent = definition.description;
+
+    const footer = document.createElement('div');
+    footer.className = 'inventory-slot-footer';
+
+    const quantity = document.createElement('span');
+    quantity.className = 'inventory-qty';
+    quantity.textContent = definition.stackable === false ? 'Unique' : `x${item.quantity}`;
+
+    footer.appendChild(quantity);
+
+    if (canUseInventoryItem(item.id)) {
+      const action = document.createElement('button');
+      action.className = 'inventory-action';
+      action.type = 'button';
+      action.textContent = definition.useLabel || 'Utiliser';
+      action.addEventListener('click', () => {
+        useInventoryItem(item.id);
+      });
+      footer.appendChild(action);
+    }
+
+    slot.appendChild(category);
     slot.appendChild(label);
+    slot.appendChild(description);
+    slot.appendChild(footer);
     inventoryGrid.appendChild(slot);
   });
+}
+
+function normalizeInventoryItem(rawItem) {
+  if (!rawItem) {
+    return null;
+  }
+
+  if (typeof rawItem === 'string') {
+    const legacyItems = {
+      'Clé du boss': { id: 'bossKey', quantity: 1 }
+    };
+    return legacyItems[rawItem] || null;
+  }
+
+  if (!rawItem.id || !inventoryItemDefinitions[rawItem.id]) {
+    return null;
+  }
+
+  return {
+    id: rawItem.id,
+    quantity: rawItem.quantity || 1
+  };
+}
+
+function getInventoryItem(itemId) {
+  return inventoryItems.find((item) => item.id === itemId);
+}
+
+function getInventoryItemCount(itemId) {
+  const item = getInventoryItem(itemId);
+  return item ? item.quantity : 0;
+}
+
+function addInventoryItem(itemId, quantity = 1, shouldRender = true) {
+  const definition = inventoryItemDefinitions[itemId];
+  if (!definition) {
+    return;
+  }
+
+  const existing = getInventoryItem(itemId);
+  if (existing) {
+    if (definition.stackable === false) {
+      if (shouldRender) {
+        renderInventory();
+      }
+      return;
+    }
+    existing.quantity += quantity;
+  } else {
+    inventoryItems.push({
+      id: itemId,
+      quantity: definition.stackable === false ? 1 : quantity
+    });
+    applyPassiveInventoryEffect(itemId);
+  }
+
+  updatePlayerInventoryFlags();
+  if (shouldRender) {
+    renderInventory();
+  }
+}
+
+function removeInventoryItem(itemId, quantity = 1, shouldRender = true) {
+  const existing = getInventoryItem(itemId);
+  if (!existing) {
+    return false;
+  }
+
+  existing.quantity -= quantity;
+  if (existing.quantity <= 0) {
+    inventoryItems = inventoryItems.filter((item) => item.id !== itemId);
+  }
+
+  updatePlayerInventoryFlags();
+  if (shouldRender) {
+    renderInventory();
+  }
+
+  return true;
+}
+
+function syncResourceInventory(shouldRender = true) {
+  Object.entries(resourceInventoryBindings).forEach(([itemId, resourceKey]) => {
+    const quantity = survivalInventory[resourceKey] || 0;
+    const existing = getInventoryItem(itemId);
+
+    if (quantity <= 0) {
+      if (existing) {
+        inventoryItems = inventoryItems.filter((item) => item.id !== itemId);
+      }
+      return;
+    }
+
+    if (existing) {
+      existing.quantity = quantity;
+    } else {
+      inventoryItems.push({ id: itemId, quantity });
+    }
+  });
+
+  updatePlayerInventoryFlags();
+  if (shouldRender) {
+    renderInventory();
+  }
+}
+
+function updatePlayerInventoryFlags() {
+  player.hasStarterWeapon = getInventoryItemCount('shortSword') > 0 || getInventoryItemCount('noviceStaff') > 0;
+  player.hasStarterShield = getInventoryItemCount('roundShield') > 0;
+  player.hasStarterPotions = getInventoryItemCount('healingPotion') > 0;
+}
+
+function applyPassiveInventoryEffect(itemId) {
+  if (itemId === 'shortSword') {
+    player.force += 15;
+    return;
+  }
+
+  if (itemId === 'noviceStaff') {
+    player.mage += 18;
+    return;
+  }
+
+  if (itemId === 'roundShield') {
+    player.maxHealth += 20;
+    player.health = clamp(player.health + 20, 0, player.maxHealth);
+  }
+}
+
+function sortInventoryItems() {
+  inventoryItems.sort((left, right) => {
+    const leftDefinition = inventoryItemDefinitions[left.id];
+    const rightDefinition = inventoryItemDefinitions[right.id];
+    const leftOrder = inventoryCategoryOrder[leftDefinition.category] ?? 99;
+    const rightOrder = inventoryCategoryOrder[rightDefinition.category] ?? 99;
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return leftDefinition.label.localeCompare(rightDefinition.label, 'fr');
+  });
+}
+
+function canUseInventoryItem(itemId) {
+  return ['bandage', 'healingPotion', 'waterFlask', 'berries', 'cookedMeat'].includes(itemId);
+}
+
+function useInventoryItem(itemId) {
+  if (itemId === 'bandage') {
+    if (player.health >= player.maxHealth) {
+      hintMessage = 'Vie deja pleine';
+      return false;
+    }
+
+    player.health = clamp(player.health + 25, 0, player.maxHealth);
+    removeInventoryItem('bandage', 1, false);
+    hintMessage = 'Bandage utilise: +25 PV';
+  } else if (itemId === 'healingPotion') {
+    if (player.health >= player.maxHealth) {
+      hintMessage = 'Vie deja pleine';
+      return false;
+    }
+
+    player.health = clamp(player.health + 45, 0, player.maxHealth);
+    removeInventoryItem('healingPotion', 1, false);
+    hintMessage = 'Potion bue: +45 PV';
+  } else if (itemId === 'waterFlask') {
+    if (survival.thirst >= survival.maxThirst) {
+      hintMessage = 'Soif deja pleine';
+      return false;
+    }
+
+    if (survivalInventory.water <= 0) {
+      return false;
+    }
+
+    survivalInventory.water -= 1;
+    survival.thirst = clamp(survival.thirst + 35, 0, survival.maxThirst);
+    syncResourceInventory(false);
+    hintMessage = 'Gourde bue: +35 soif';
+  } else if (itemId === 'berries') {
+    if (survival.hunger >= survival.maxHunger) {
+      hintMessage = 'Faim deja pleine';
+      return false;
+    }
+
+    if (survivalInventory.berries <= 0) {
+      return false;
+    }
+
+    survivalInventory.berries -= 1;
+    survival.hunger = clamp(survival.hunger + 15, 0, survival.maxHunger);
+    syncResourceInventory(false);
+    hintMessage = 'Baies mangees: +15 faim';
+  } else if (itemId === 'cookedMeat') {
+    if (survival.hunger >= survival.maxHunger) {
+      hintMessage = 'Faim deja pleine';
+      return false;
+    }
+
+    if (survivalInventory.cookedMeat <= 0) {
+      return false;
+    }
+
+    survivalInventory.cookedMeat -= 1;
+    survival.hunger = clamp(survival.hunger + 40, 0, survival.maxHunger);
+    syncResourceInventory(false);
+    hintMessage = 'Viande mangee: +40 faim';
+  } else {
+    return false;
+  }
+
+  updateHealthHud();
+  updateSurvivalHUD();
+  renderInventory();
+  return true;
 }
 
 function getBarrierWallRects() {
@@ -3867,6 +4141,8 @@ function initSurvival() {
   survivalInventory.wood = 2;
   survivalInventory.stone = 1;
   survivalInventory.berries = 3;
+  survivalInventory.water = 1;
+  syncResourceInventory();
 }
 
 function updateSurvival() {
@@ -3998,6 +4274,7 @@ function tryCollectResource() {
       berry.collected = true;
       berry.respawnTime = Date.now() + 30000;
       survivalInventory.berries++;
+      syncResourceInventory();
       hintMessage = `Baies collectées (+1) - Total: ${survivalInventory.berries}`;
       return true;
     }
@@ -4011,6 +4288,7 @@ function tryCollectResource() {
       wood.collected = true;
       wood.respawnTime = Date.now() + 45000;
       survivalInventory.wood++;
+      syncResourceInventory();
       hintMessage = `Bois collecté (+1) - Total: ${survivalInventory.wood}`;
       return true;
     }
@@ -4024,6 +4302,7 @@ function tryCollectResource() {
       stone.collected = true;
       stone.respawnTime = Date.now() + 60000;
       survivalInventory.stone++;
+      syncResourceInventory();
       hintMessage = `Pierre collectée (+1) - Total: ${survivalInventory.stone}`;
       return true;
     }
@@ -4043,25 +4322,14 @@ function tryCollectResource() {
 }
 
 function tryEatFood() {
-  if (survivalInventory.berries > 0) {
-    survivalInventory.berries--;
-    survival.hunger = clamp(survival.hunger + 15, 0, survival.maxHunger);
-    hintMessage = `Baies mangées - Faim +15`;
-    return true;
-  }
-  if (survivalInventory.cookedMeat > 0) {
-    survivalInventory.cookedMeat--;
-    survival.hunger = clamp(survival.hunger + 40, 0, survival.maxHunger);
-    hintMessage = `Viande mangée - Faim +40`;
-    return true;
-  }
-  return false;
+  return useInventoryItem('berries') || useInventoryItem('cookedMeat');
 }
 
 function tryPlaceCampfire() {
   if (survivalInventory.wood >= 3 && survivalInventory.stone >= 2) {
     survivalInventory.wood -= 3;
     survivalInventory.stone -= 2;
+    syncResourceInventory(false);
     survivalResources.campfires.push({
       x: player.x + player.width / 2,
       y: player.y + player.height / 2 + 30,
@@ -4292,16 +4560,17 @@ function checkEnemyCollision() {
 function drawSurvivalInventoryHUD() {
   const hudX = 16;
   const hudY = canvas.height - 60;
+  const hudWidth = 380;
   
   ctx.fillStyle = 'rgba(2, 6, 23, 0.8)';
-  ctx.fillRect(hudX, hudY, 300, 50);
+  ctx.fillRect(hudX, hudY, hudWidth, 50);
   ctx.strokeStyle = '#475569';
-  ctx.strokeRect(hudX, hudY, 300, 50);
+  ctx.strokeRect(hudX, hudY, hudWidth, 50);
   
   ctx.fillStyle = '#f8fafc';
   ctx.font = '12px Arial';
-  ctx.fillText(`🪵 ${survivalInventory.wood}  🪨 ${survivalInventory.stone}  🫐 ${survivalInventory.berries}  🥩 ${survivalInventory.cookedMeat}`, hudX + 10, hudY + 20);
-  ctx.fillText('F: Manger | C: Feu de camp | E: Collecter', hudX + 10, hudY + 40);
+  ctx.fillText(`🪵 ${survivalInventory.wood}  🪨 ${survivalInventory.stone}  🫐 ${survivalInventory.berries}  🥩 ${survivalInventory.cookedMeat}  🥤 ${survivalInventory.water}`, hudX + 10, hudY + 20);
+  ctx.fillText('F: Manger | C: Feu de camp | E: Collecter | B: Inventaire', hudX + 10, hudY + 40);
 }
 
 function gameLoop() {
