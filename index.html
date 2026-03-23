@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Monde Ouvert - Temple des Brumes</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260323a" />
 </head>
 <body>
   <main class="app">
@@ -82,9 +82,23 @@
         </div>
         <div id="inventory-grid" class="inventory-grid"></div>
       </aside>
+
+      <section id="dragon-dialog" class="dialog-overlay hidden" aria-label="Dialogue Smaug">
+        <div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="dragon-dialog-title">
+          <h3 id="dragon-dialog-title">Smaug</h3>
+          <p id="dragon-dialog-question" class="dialog-question"></p>
+          <form id="dragon-dialog-form" class="dialog-form">
+            <input id="dragon-dialog-input" type="text" autocomplete="off" placeholder="Ta réponse..." maxlength="60" />
+            <div class="dialog-actions">
+              <button id="dragon-dialog-submit" type="submit">Répondre</button>
+              <button id="dragon-dialog-cancel" type="button">Fermer</button>
+            </div>
+          </form>
+        </div>
+      </section>
     </section>
   </main>
 
-  <script src="game.js"></script>
+  <script src="game.js?v=20260323a"></script>
 </body>
 </html>

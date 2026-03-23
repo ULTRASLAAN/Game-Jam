@@ -9,6 +9,11 @@ const healthText = document.getElementById('health-text');
 const inventoryPanel = document.getElementById('inventory-panel');
 const inventoryTitle = document.getElementById('inventory-title');
 const inventoryGrid = document.getElementById('inventory-grid');
+const dragonDialog = document.getElementById('dragon-dialog');
+const dragonDialogQuestion = document.getElementById('dragon-dialog-question');
+const dragonDialogForm = document.getElementById('dragon-dialog-form');
+const dragonDialogInput = document.getElementById('dragon-dialog-input');
+const dragonDialogCancel = document.getElementById('dragon-dialog-cancel');
 const buttons = document.querySelectorAll('.select-btn');
 const cards = document.querySelectorAll('.card');
 
@@ -229,11 +234,11 @@ const medievalFoyer = {
 };
 
 const mountainHealingCherry = {
-  x: 1875,
-  y: 560,
+  x: 1770,
+  y: 820,
   canopyRadius: 86,
-  healRadius: 78,
-  healAmount: 1,
+  healRadius: 200,
+  healAmount: 2,
   healIntervalMs: 700
 };
 
@@ -249,6 +254,8 @@ const miniBosses = [
   {
     id: 'temple-guardian',
     name: 'Gardien du Temple',
+    rewardItemId: 'legendaryHelmet',
+    rewardLabel: 'Casque legendaire',
     x: 520,
     y: 1160,
     w: 34,
@@ -267,6 +274,8 @@ const miniBosses = [
   {
     id: 'forest-stalker',
     name: 'Traqueur Sylvestre',
+    rewardItemId: 'healingPotion',
+    rewardLabel: 'Potion de soin',
     x: 1110,
     y: 1040,
     w: 34,
@@ -285,6 +294,8 @@ const miniBosses = [
   {
     id: 'mountain-brute',
     name: 'Brute des Crêtes',
+    rewardItemId: 'legendaryBoots',
+    rewardLabel: 'Bottes legendaires',
     x: 1820,
     y: 980,
     w: 38,
@@ -397,12 +408,33 @@ const mountainFlowerPatches = [
   { x: 2210, y: 1180, color: '#ec4899' }
 ];
 
-const mountainWallColliders = [
-  { x: 32 * TILE, y: 0, w: 16 * TILE, h: 490 },
-  { x: 32 * TILE + 40, y: 470, w: 210, h: 110 },
-  { x: 32 * TILE + 300, y: 450, w: 230, h: 130 },
-  { x: 32 * TILE + 570, y: 465, w: 175, h: 120 }
-];
+// Dragon endormi au sommet des montagnes
+const sleepingDragon = {
+  x: 1770,
+  y: 200,
+  w: 120,
+  h: 100,
+  color: '#8b2e1a',
+  accentColor: '#c23a1a',
+  wingColor: '#a83a2a',
+  flightHeight: 150,
+  flightRange: 200
+};
+
+const dragonRiddle = {
+  question: 'Je grandis quand je mange, mais je meurs quand je bois. Qui suis-je ?',
+  acceptedAnswers: ['feu', 'le feu']
+};
+
+const mountainWallColliders = [];
+
+// Barrière invisible à la hauteur du dragon (empêche de passer au-dessus)
+const dragonTailBarrier = {
+  x: 32 * TILE,
+  y: 150,
+  w: 16 * TILE,
+  h: 100
+};
 
 const forestChests = [
   {
@@ -581,6 +613,8 @@ let hintMessage = 'Objectif: explore les cerisiers';
 let inventoryOpen = false;
 let inventoryItems = [];
 let mountainHealLastTick = 0;
+let dragonRiddleSolved = false;
+let isDragonDialogOpen = false;
 let isGameOver = false;
 let gameOverReason = '';
 let isVictory = false;
@@ -604,6 +638,7 @@ const survival = {
   dehydrationDamage: 3,
   freezingDamage: 1.5,
   overheatDamage: 1,
+  poisonDamagePerTick: 2,
   
   lastUpdate: 0,
   
@@ -614,7 +649,9 @@ const survival = {
   
   // État
   isNight: false,
-  nearCampfire: false
+  nearCampfire: false,
+  poisonUntil: 0,
+  nextPoisonTick: 0
 };
 
 // Ressources collectables dans le monde
@@ -713,7 +750,8 @@ const player = {
   className: '',
   hasStarterWeapon: false,
   hasStarterShield: false,
-  hasStarterPotions: false
+  hasStarterPotions: false,
+  hasLegendaryArmor: false
 };
 
 const inventoryCategoryOrder = {
@@ -801,8 +839,32 @@ const inventoryItemDefinitions = {
     category: 'quest',
     description: 'Ouvre la barriere du sanctuaire final.',
     stackable: false
+  },
+  legendaryHelmet: {
+    label: 'Casque legendaire',
+    category: 'equipment',
+    description: 'Piece de set requise pour survivre au sanctuaire final.',
+    stackable: false
+  },
+  legendaryArmor: {
+    label: 'Armure legendaire',
+    category: 'equipment',
+    description: 'Piece de set requise pour survivre au sanctuaire final.',
+    stackable: false
+  },
+  legendaryBoots: {
+    label: 'Bottes legendaires',
+    category: 'equipment',
+    description: 'Piece de set requise pour survivre au sanctuaire final.',
+    stackable: false
   }
 };
+
+const finalBossLegendaryRequirements = [
+  { id: 'legendaryHelmet', label: 'Casque legendaire' },
+  { id: 'legendaryArmor', label: 'Armure legendaire' },
+  { id: 'legendaryBoots', label: 'Bottes legendaires' }
+];
 
 const resourceInventoryBindings = {
   wood: 'wood',
@@ -854,6 +916,15 @@ cards.forEach((card) => {
 window.addEventListener('keydown', (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
 
+  if (isDragonDialogVisible()) {
+    if (key === 'Escape') {
+      closeDragonDialog();
+      hintMessage = 'Smaug: Reviens me voir si tu oses repondre a mon enigme.';
+      event.preventDefault();
+    }
+    return;
+  }
+
   if (key === 'b') {
     toggleInventory();
     event.preventDefault();
@@ -861,8 +932,8 @@ window.addEventListener('keydown', (event) => {
   }
 
   if (key === 'e') {
-    if (!tryCollectResource()) {
-      handleInteract();
+    if (!handleInteract()) {
+      tryCollectResource();
     }
     event.preventDefault();
     return;
@@ -888,10 +959,26 @@ window.addEventListener('keydown', (event) => {
 
 window.addEventListener('keyup', (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (isDragonDialogVisible()) {
+    if (key in keys) {
+      keys[key] = false;
+    }
+    return;
+  }
   if (key in keys) {
     keys[key] = false;
     event.preventDefault();
   }
+});
+
+dragonDialogForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  submitDragonDialogAnswer();
+});
+
+dragonDialogCancel.addEventListener('click', () => {
+  closeDragonDialog();
+  hintMessage = 'Smaug: Reviens me voir si tu oses repondre a mon enigme.';
 });
 
 function startGame(choice) {
@@ -904,6 +991,9 @@ function startGame(choice) {
   player.hasStarterWeapon = false;
   player.hasStarterShield = false;
   player.hasStarterPotions = false;
+  player.hasLegendaryArmor = false;
+  isDragonDialogOpen = false;
+  dragonDialog.classList.add('hidden');
   
   // Reset position au spawn
   player.x = 8 * TILE;
@@ -936,6 +1026,7 @@ function startGame(choice) {
   miniBossSubBoss.isUnlocked = false;
   miniBossSubBoss.isDefeated = false;
   mountainHealLastTick = 0;
+  dragonRiddleSolved = false;
   hintMessage = 'Objectif: explore les cerisiers';
 
   if (choice === 'sorcier') {
@@ -957,6 +1048,8 @@ function startGame(choice) {
   characterScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
   buildInventory(choice);
+  inventoryItems = inventoryItems.filter((item) => !item.id.startsWith('legendary'));
+  renderInventory();
   closeInventory();
   updateHealthHud();
   initSurvival();
@@ -984,6 +1077,10 @@ function startGame(choice) {
 }
 
 function update() {
+  if (!isDragonDialogVisible() && isDragonDialogOpen) {
+    isDragonDialogOpen = false;
+  }
+
   if (inventoryOpen) {
     playerInfo.textContent = `${player.className} | Force: ${player.force} | Mage: ${player.mage} | Zone: ${currentZone} | Inventaire ouvert`;
     updateHealthHud();
@@ -1067,20 +1164,32 @@ function update() {
       : `Bats d'abord les mini-boss (${countDefeatedMiniBosses()}/${miniBosses.length})`;
   } else if (!mountainBossKey.isCollected && mountainBossKey.isDropped && isPlayerNearMountainBossKey()) {
     hintMessage = 'La clé du grand boss est là: appuie sur E';
+  } else if (isPlayerNearDragon()) {
+    hintMessage = dragonRiddleSolved
+      ? 'Smaug: l\'armure legendaire est a toi. Termine ton set et affronte Maleficus.'
+      : 'Smaug t\'observe: appuie sur E pour repondre a son enigme et obtenir l\'Armure legendaire';
   } else if (isPlayerInMountainHealingZone()) {
     hintMessage = 'Cerisier sacré: la zone régénère +1 vie petit à petit';
   } else if (isPlayerNearMountainHealingTree()) {
     hintMessage = 'Montagnes: approche du cerisier sacré pour te soigner';
   } else if (isPlayerNearFinalBoss() && !finalBoss.isDefeated) {
-    const ph = finalBoss.phase;
-    const phLabel = ph >= 3 ? ' ☠ RAGE' : ph >= 2 ? ' ⚔ Phase II' : '';
-    hintMessage = `Maléficus${phLabel} — E pour frapper ! (${finalBoss.hp}/${finalBoss.maxHp} PV)`;
+    if (!hasFullLegendarySet()) {
+      hintMessage = `Set legendaire incomplet: ${formatMissingLegendaryRequirements()}. Echec assure contre Maleficus.`;
+    } else {
+      const ph = finalBoss.phase;
+      const phLabel = ph >= 3 ? ' ☠ RAGE' : ph >= 2 ? ' ⚔ Phase II' : '';
+      hintMessage = `Maléficus${phLabel} — E pour frapper ! (${finalBoss.hp}/${finalBoss.maxHp} PV)`;
+    }
   } else if (finalBoss.isDefeated && currentZone === 'Sanctuaire Final') {
     hintMessage = '🏆 Maléficus vaincu — Le royaume est en paix !';
   } else if (!finalBarrier.isOpen && distanceToFinalBarrier() < 120) {
-    hintMessage = mountainBossKey.isCollected
-      ? 'Barrière du sanctuaire: appuie sur E'
-      : 'Il faut battre le sous-boss pour obtenir la clé';
+    if (mountainBossKey.isCollected && !hasFullLegendarySet()) {
+      hintMessage = `Barriere ouverte, mais set legendaire incomplet: ${formatMissingLegendaryRequirements()}`;
+    } else {
+      hintMessage = mountainBossKey.isCollected
+        ? 'Barrière du sanctuaire: appuie sur E'
+        : 'Il faut battre le sous-boss pour obtenir la clé';
+    }
   } else if (!entryBarrier.isOpen && distanceToBarrier() < 90) {
     hintMessage = 'Appuie sur E pour ouvrir la barrière';
   } else if (entryBarrier.isOpen) {
@@ -1108,6 +1217,7 @@ function draw() {
   drawCerbereFlames();
   drawMountainHealingCherry();
   drawMountainBossKey();
+  drawSleepingDragon();
   drawForestChests();
   drawRiverBridges();
   drawFinalAccessBridge();
@@ -1132,44 +1242,26 @@ function drawMountainHealingCherry() {
   const x = mountainHealingCherry.x - camera.x;
   const y = mountainHealingCherry.y - camera.y;
   const pulse = (Math.sin(Date.now() * 0.004) + 1) / 2;
-  const time = Date.now() * 0.001;
+  const time = Date.now() * 0.0007;
 
   ctx.save();
 
-  ctx.fillStyle = `rgba(251, 207, 232, ${(0.09 + pulse * 0.08).toFixed(3)})`;
+  // Ombre
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.beginPath();
-  ctx.ellipse(x, y + 70, mountainHealingCherry.healRadius, 36 + pulse * 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 190, 92, 12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = `rgba(244, 114, 182, ${(0.38 + pulse * 0.2).toFixed(3)})`;
-  ctx.lineWidth = 2;
+  // Tronc
+  ctx.strokeStyle = '#8b6f47';
+  ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.ellipse(x, y + 70, mountainHealingCherry.healRadius, 34 + pulse * 5, 0, 0, Math.PI * 2);
+  ctx.moveTo(x, y + 100);
+  ctx.lineTo(x, y + 180);
   ctx.stroke();
 
-  ctx.fillStyle = '#4a2c1d';
-  ctx.beginPath();
-  ctx.moveTo(x - 12, y + 84);
-  ctx.quadraticCurveTo(x - 20, y + 28, x - 6, y - 22);
-  ctx.quadraticCurveTo(x + 4, y - 58, x + 18, y - 110);
-  ctx.lineTo(x + 34, y - 104);
-  ctx.quadraticCurveTo(x + 12, y - 42, x + 8, y + 28);
-  ctx.quadraticCurveTo(x + 2, y + 58, x + 12, y + 84);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = '#5b3724';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(x + 12, y - 88);
-  ctx.quadraticCurveTo(x - 46, y - 126, x - 82, y - 132);
-  ctx.moveTo(x + 18, y - 104);
-  ctx.quadraticCurveTo(x + 72, y - 142, x + 122, y - 110);
-  ctx.moveTo(x + 4, y - 62);
-  ctx.quadraticCurveTo(x - 34, y - 38, x - 64, y - 8);
-  ctx.stroke();
-
-  ctx.strokeStyle = '#cbd5e1';
+  // Grandes branches
+  ctx.strokeStyle = '#8b6f47';
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(x - 46, y + 84);
@@ -1277,6 +1369,320 @@ function drawMountainBossKey() {
   ctx.fillStyle = '#f8fafc';
   ctx.font = '12px Arial';
   ctx.fillText('Clé du boss', x - 28, y - 20);
+  ctx.restore();
+}
+
+function drawSleepingDragon() {
+  const time = Date.now() * 0.0006;
+  const dx = sleepingDragon.x - camera.x;
+  const dy = sleepingDragon.y - camera.y;
+  const wingFlap = Math.sin(time * 2) * 0.25;
+  
+  ctx.save();
+  
+  // === OMBRE MASSIVE ===
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(dx + 20, dy + 120, 120, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // === QUEUE MASSIVE ===
+  ctx.strokeStyle = sleepingDragon.color;
+  ctx.lineWidth = 25;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(dx - 60, dy + 40);
+  ctx.bezierCurveTo(
+    dx - 140, dy + 80,
+    dx - 160, dy - 40,
+    dx - 100, dy - 120
+  );
+  ctx.stroke();
+  
+  // Écailles de queue (grandes)
+  ctx.fillStyle = sleepingDragon.accentColor;
+  for (let i = 0; i < 8; i++) {
+    const t = i / 8;
+    const qx = dx - 60 + (t * -40);
+    const qy = dy + 40 + (Math.sin(t * Math.PI * 2) * 80 - 100 * t);
+    ctx.beginPath();
+    ctx.ellipse(qx, qy, 8, 12, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // === AILES MASSIVES ===
+  // Aile gauche
+  ctx.fillStyle = sleepingDragon.wingColor;
+  ctx.save();
+  ctx.translate(dx - 50, dy - 20);
+  ctx.rotate(wingFlap - 0.3);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-80, -120, -140, -100, -120, 20);
+  ctx.lineTo(-60, 10);
+  ctx.bezierCurveTo(-80, -80, -100, -60, -40, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Membranes de l'aile
+  ctx.strokeStyle = sleepingDragon.accentColor;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-30 - i * 15, -10);
+    ctx.lineTo(-80 - i * 20, -90 - i * 10);
+    ctx.stroke();
+  }
+  ctx.restore();
+  
+  // Aile droite
+  ctx.fillStyle = sleepingDragon.wingColor;
+  ctx.save();
+  ctx.translate(dx + 50, dy - 20);
+  ctx.rotate(-wingFlap + 0.3);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(80, -120, 140, -100, 120, 20);
+  ctx.lineTo(60, 10);
+  ctx.bezierCurveTo(80, -80, 100, -60, 40, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Membranes droites
+  ctx.strokeStyle = sleepingDragon.accentColor;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(30 + i * 15, -10);
+    ctx.lineTo(80 + i * 20, -90 - i * 10);
+    ctx.stroke();
+  }
+  ctx.restore();
+  
+  // === CORPS PRINCIPAL ===
+  ctx.fillStyle = sleepingDragon.color;
+  ctx.beginPath();
+  ctx.ellipse(dx, dy + 15, 70, 50, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Écailles du corps (grandes et détaillées)
+  ctx.fillStyle = sleepingDragon.accentColor;
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 5; col++) {
+      const sx = dx - 55 + col * 22;
+      const sy = dy - 20 + row * 18;
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, 10, 14, 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  // === COU ÉPAIS ===
+  ctx.fillStyle = sleepingDragon.color;
+  ctx.beginPath();
+  ctx.moveTo(dx + 60, dy - 10);
+  ctx.lineTo(dx + 80, dy - 40);
+  ctx.lineTo(dx + 85, dy - 38);
+  ctx.lineTo(dx + 65, dy - 8);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Écailles du cou
+  ctx.fillStyle = sleepingDragon.accentColor;
+  for (let i = 0; i < 4; i++) {
+    const nx = dx + 68 + i * 3;
+    const ny = dy - 15 - i * 8;
+    ctx.beginPath();
+    ctx.ellipse(nx, ny, 7, 9, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // === TÊTE MASSIVE ET FÉROCE ===
+  ctx.fillStyle = sleepingDragon.color;
+  ctx.beginPath();
+  // Forme de crâne de dragon
+  ctx.moveTo(dx + 80, dy - 42);
+  ctx.bezierCurveTo(dx + 100, dy - 60, dx + 130, dy - 65, dx + 150, dy - 50);
+  ctx.lineTo(dx + 155, dy - 35);
+  ctx.lineTo(dx + 150, dy - 20);
+  ctx.lineTo(dx + 120, dy - 15);
+  ctx.lineTo(dx + 85, dy - 25);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Museau/Mâchoire inférieure
+  ctx.fillStyle = sleepingDragon.accentColor;
+  ctx.beginPath();
+  ctx.moveTo(dx + 120, dy - 15);
+  ctx.lineTo(dx + 155, dy - 20);
+  ctx.lineTo(dx + 150, dy - 10);
+  ctx.lineTo(dx + 120, dy - 5);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Dents massives (supérieures)
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 6; i++) {
+    const tx = dx + 125 + i * 8;
+    const ty = dy - 22;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + 3, ty + 10);
+    ctx.lineTo(tx + 5, ty);
+    ctx.closePath();
+    ctx.fill();
+  }
+  
+  // Dents massives (inférieures)
+  for (let i = 0; i < 5; i++) {
+    const tx = dx + 128 + i * 8;
+    const ty = dy - 5;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + 3, ty - 8);
+    ctx.lineTo(tx + 5, ty);
+    ctx.closePath();
+    ctx.fill();
+  }
+  
+  // Narines fumantes
+  ctx.fillStyle = 'rgba(255, 100, 50, 0.5)';
+  ctx.beginPath();
+  ctx.ellipse(dx + 145, dy - 48, 6, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(dx + 145, dy - 38, 6, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Fumée des narines
+  ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
+  for (let i = 0; i < 3; i++) {
+    const fx = dx + 150 + Math.sin(time + i) * 8;
+    const fy = dy - 45 - i * 12;
+    ctx.beginPath();
+    ctx.arc(fx, fy, 4 + i * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // === YEUX PERÇANTS ===
+  // Blanc de l'oeil
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(dx + 110, dy - 52, 8, 12, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(dx + 125, dy - 55, 8, 12, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Iris doré/rouge
+  ctx.fillStyle = '#ff8800';
+  ctx.beginPath();
+  ctx.ellipse(dx + 110, dy - 52, 5, 8, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(dx + 125, dy - 55, 5, 8, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Pupilles verticales (menacantes)
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.ellipse(dx + 110, dy - 52, 2, 6, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(dx + 125, dy - 55, 2, 6, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Regard de feu
+  ctx.fillStyle = 'rgba(255, 100, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(dx + 110, dy - 52, 10, 14, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(dx + 125, dy - 55, 10, 14, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // === CORNES MASSIVES ===
+  // Corne gauche
+  ctx.strokeStyle = sleepingDragon.accentColor;
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(dx + 105, dy - 62);
+  ctx.bezierCurveTo(dx + 95, dy - 85, dx + 80, dy - 100, dx + 75, dy - 120);
+  ctx.stroke();
+  
+  // Corne droite
+  ctx.beginPath();
+  ctx.moveTo(dx + 130, dy - 65);
+  ctx.bezierCurveTo(dx + 145, dy - 90, dx + 160, dy - 110, dx + 170, dy - 130);
+  ctx.stroke();
+  
+  // Pics crâniens
+  ctx.fillStyle = sleepingDragon.accentColor;
+  for (let i = 0; i < 3; i++) {
+    const px = dx + 100 + i * 20;
+    const py = dy - 68 - i * 3;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px - 4, py - 14);
+    ctx.lineTo(px + 4, py - 14);
+    ctx.closePath();
+    ctx.fill();
+  }
+  
+  // === PATTES ===
+  ctx.strokeStyle = sleepingDragon.color;
+  ctx.lineWidth = 18;
+  ctx.lineCap = 'round';
+  
+  // Patte avant gauche
+  ctx.beginPath();
+  ctx.moveTo(dx - 40, dy + 50);
+  ctx.lineTo(dx - 50, dy + 95);
+  ctx.stroke();
+  
+  // Patte avant droite
+  ctx.beginPath();
+  ctx.moveTo(dx + 40, dy + 50);
+  ctx.lineTo(dx + 50, dy + 95);
+  ctx.stroke();
+  
+  // Patte arrière gauche
+  ctx.beginPath();
+  ctx.moveTo(dx - 60, dy + 35);
+  ctx.lineTo(dx - 70, dy + 85);
+  ctx.stroke();
+  
+  // Patte arrière droite
+  ctx.beginPath();
+  ctx.moveTo(dx + 60, dy + 35);
+  ctx.lineTo(dx + 70, dy + 85);
+  ctx.stroke();
+  
+  // Griffes des pattes
+  ctx.fillStyle = sleepingDragon.accentColor;
+  const pattesPos = [
+    { x: dx - 50, y: dy + 95 },
+    { x: dx + 50, y: dy + 95 },
+    { x: dx - 70, y: dy + 85 },
+    { x: dx + 70, y: dy + 85 }
+  ];
+  
+  pattesPos.forEach(patte => {
+    for (let g = 0; g < 4; g++) {
+      ctx.beginPath();
+      ctx.ellipse(patte.x - 6 + g * 3, patte.y + 8, 2, 5, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  
+  // === NOM DU DRAGON ===
+  ctx.fillStyle = 'rgba(200, 50, 50, 0.9)';
+  ctx.font = 'bold 22px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('SMAUG', dx, dy + 140);
+  
   ctx.restore();
 }
 
@@ -2568,6 +2974,10 @@ function drawFinalBossOrbs() {
 function tryHitFinalBoss() {
   if (finalBoss.isDefeated) return false;
   if (!isPlayerNearFinalBoss()) return false;
+  if (!hasFullLegendarySet()) {
+    hintMessage = `Impossible de battre Maleficus: equipement legendaire insuffisant (${formatMissingLegendaryRequirements()})`;
+    return true;
+  }
   const now = Date.now();
   if (now - finalBoss.lastHitTime < finalBoss.invincibleMs) {
     hintMessage = '⚡ Boss invincible ! Recule et reprends.';
@@ -2734,6 +3144,13 @@ function drawZones() {
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
       ctx.fillRect(x, y, zone.w, zone.h);
+      
+      // Transition vers la forêt (gradient droit)
+      const templeForestGrad = ctx.createLinearGradient(x + zone.w - 80, y, x + zone.w, y);
+      templeForestGrad.addColorStop(0, 'rgba(59, 52, 47, 0)');
+      templeForestGrad.addColorStop(1, 'rgba(15, 61, 46, 0.4)');
+      ctx.fillStyle = templeForestGrad;
+      ctx.fillRect(x + zone.w - 80, y, 80, zone.h);
     } else if (zone.name === 'Forêt Ancienne') {
       ctx.fillStyle = '#0f3d2e';
       ctx.fillRect(x, y, zone.w, zone.h);
@@ -2746,6 +3163,20 @@ function drawZones() {
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
       ctx.fillRect(x, y, zone.w, zone.h);
+      
+      // Transition depuis le temple (gradient gauche)
+      const forestTempleGrad = ctx.createLinearGradient(x, y, x + 80, y);
+      forestTempleGrad.addColorStop(0, 'rgba(15, 61, 46, 0.4)');
+      forestTempleGrad.addColorStop(1, 'rgba(15, 61, 46, 0)');
+      ctx.fillStyle = forestTempleGrad;
+      ctx.fillRect(x, y, 80, zone.h);
+      
+      // Transition vers les montagnes (gradient droit)
+      const forestMountainGrad = ctx.createLinearGradient(x + zone.w - 80, y, x + zone.w, y);
+      forestMountainGrad.addColorStop(0, 'rgba(15, 61, 46, 0)');
+      forestMountainGrad.addColorStop(1, 'rgba(51, 65, 85, 0.35)');
+      ctx.fillStyle = forestMountainGrad;
+      ctx.fillRect(x + zone.w - 80, y, 80, zone.h);
     } else if (zone.name === 'Montagnes Brisées') {
       const sky = ctx.createLinearGradient(x, y, x, y + zone.h * 0.64);
       sky.addColorStop(0, '#0b74c8');
@@ -2773,6 +3204,21 @@ function drawZones() {
       ridgeGlow.addColorStop(1, 'rgba(15, 23, 42, 0.1)');
       ctx.fillStyle = ridgeGlow;
       ctx.fillRect(x, y, zone.w, zone.h);
+      
+      // Transition depuis la forêt (gradient gauche)
+      const mountainForestGrad = ctx.createLinearGradient(x, y, x + 80, y);
+      mountainForestGrad.addColorStop(0, 'rgba(51, 65, 85, 0.35)');
+      mountainForestGrad.addColorStop(1, 'rgba(51, 65, 85, 0)');
+      ctx.fillStyle = mountainForestGrad;
+      ctx.fillRect(x, y, 80, zone.h);
+      
+      // Transition vers le sanctuaire (gradient droit) - effet brumeux
+      const mountainEvilGrad = ctx.createLinearGradient(x + zone.w - 100, y, x + zone.w, y);
+      mountainEvilGrad.addColorStop(0, 'rgba(51, 65, 85, 0)');
+      mountainEvilGrad.addColorStop(0.5, 'rgba(125, 30, 30, 0.2)');
+      mountainEvilGrad.addColorStop(1, 'rgba(26, 5, 5, 0.4)');
+      ctx.fillStyle = mountainEvilGrad;
+      ctx.fillRect(x + zone.w - 100, y, 100, zone.h);
     } else if (zone.name === 'Sanctuaire Final') {
       // Fond dégradé rouge sang vers noir
       const evilSky = ctx.createLinearGradient(x, y, x, y + zone.h);
@@ -2811,6 +3257,14 @@ function drawZones() {
       vignette.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
       ctx.fillStyle = vignette;
       ctx.fillRect(x, y, zone.w, zone.h);
+      
+      // Transition depuis les montagnes (gradient gauche) - brume maléfique
+      const evilMountainGrad = ctx.createLinearGradient(x, y, x + 100, y);
+      evilMountainGrad.addColorStop(0, 'rgba(26, 5, 5, 0.4)');
+      evilMountainGrad.addColorStop(0.5, 'rgba(125, 30, 30, 0.2)');
+      evilMountainGrad.addColorStop(1, 'rgba(26, 5, 5, 0)');
+      ctx.fillStyle = evilMountainGrad;
+      ctx.fillRect(x, y, 100, zone.h);
 
       // Dessiner les particules maléfiques
       evilParticles.forEach(p => {
@@ -3869,6 +4323,22 @@ function drawPlayer() {
     ctx.fillRect(px + 2, py + 42, 8, 4);
     ctx.fillRect(px + 16, py + 42, 8, 4);
 
+    if (player.hasLegendaryArmor) {
+      // Armure légendaire dorée (sorcier)
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(px + 3, py + 13, 20, 8);
+      ctx.fillRect(px + 6, py + 21, 14, 10);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(px + 5, py + 14, 3, 16);
+      ctx.fillRect(px + 18, py + 14, 3, 16);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(px + 12, py + 15, 2, 14);
+      // Épaulières
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(px - 1, py + 13, 4, 4);
+      ctx.fillRect(px + 23, py + 13, 4, 4);
+    }
+
     if (player.hasStarterPotions) {
       ctx.fillStyle = '#38bdf8';
       ctx.fillRect(px - 14, py + 20, 4, 6);
@@ -3981,6 +4451,25 @@ function drawPlayer() {
     ctx.fillRect(px + 3, py + 50, 9, 4);
     ctx.fillRect(px + 14, py + 50, 9, 4);
 
+    if (player.hasLegendaryArmor) {
+      // Armure légendaire dorée (barbare)
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(px + 3, py + 16, 20, 6);
+      ctx.fillRect(px + 4, py + 22, 18, 12);
+      // Bordures et reflets or
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(px + 4, py + 17, 2, 16);
+      ctx.fillRect(px + 20, py + 17, 2, 16);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(px + 12, py + 18, 2, 13);
+      // Rivets
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(px + 8, py + 20, 2, 2);
+      ctx.fillRect(px + 16, py + 20, 2, 2);
+      ctx.fillRect(px + 8, py + 27, 2, 2);
+      ctx.fillRect(px + 16, py + 27, 2, 2);
+    }
+
     // Arme (si équipée)
     if (player.hasStarterWeapon) {
       // Grande hache
@@ -4044,6 +4533,7 @@ function isBlockedByWorld() {
     ...templeColliders,
     ...finalTempleColliders,
     ...mountainWallColliders,
+    dragonTailBarrier,
     ...getBarrierWallRects(),
     ...getGateColliderIfClosed(),
     ...getFinalGateWallColliders(),
@@ -4174,37 +4664,42 @@ function tryDepositWoodAtFoyer() {
 
 function handleInteract() {
   if (tryDepositWoodAtFoyer()) {
-    return;
+    return true;
+  }
+  if (tryTalkToDragon()) {
+    return true;
   }
   if (tryHitFinalBoss()) {
-    return;
+    return true;
   }
   if (tryOpenStarterChest()) {
-    return;
+    return true;
   }
   if (tryOpenForestChest()) {
-    return;
+    return true;
   }
   if (tryHitMiniBoss()) {
-    return;
+    return true;
   }
   if (tryHitSubBoss()) {
-    return;
+    return true;
   }
   if (tryCollectMountainBossKey()) {
-    return;
+    return true;
   }
   if (tryOpenFinalBarrier()) {
-    return;
+    return true;
   }
-  tryOpenBarrier();
+  return tryOpenBarrier();
 }
 
 function tryOpenBarrier() {
-  if (entryBarrier.isOpen) return;
+  if (entryBarrier.isOpen) return false;
   if (distanceToBarrier() < 90) {
     entryBarrier.isOpen = true;
+    return true;
   }
+  return false;
 }
 
 function tryOpenFinalBarrier() {
@@ -4215,8 +4710,95 @@ function tryOpenFinalBarrier() {
     return false;
   }
   finalBarrier.isOpen = true;
-  hintMessage = 'Barrière finale ouverte';
+  if (hasFullLegendarySet()) {
+    hintMessage = 'Barriere finale ouverte: set legendaire complet, tu peux affronter Maleficus';
+  } else {
+    hintMessage = `Barriere finale ouverte, mais il manque: ${formatMissingLegendaryRequirements()}`;
+  }
   return true;
+}
+
+function tryTalkToDragon() {
+  if (!isPlayerNearDragon()) {
+    return false;
+  }
+
+  if (!dragonDialog || !dragonDialogQuestion || !dragonDialogInput) {
+    const answer = window.prompt(`Smaug: ${dragonRiddle.question}\n\nReponds en un mot:`) || '';
+    const normalizedAnswer = answer.trim().toLowerCase();
+    if (dragonRiddle.acceptedAnswers.includes(normalizedAnswer)) {
+      const hadArmorBefore = getInventoryItemCount('legendaryArmor') > 0;
+      dragonRiddleSolved = true;
+      if (!hadArmorBefore) {
+        addItemsToInventory([{ id: 'legendaryArmor', quantity: 1 }]);
+      }
+      hintMessage = hadArmorBefore
+        ? 'Smaug: Encore juste. Tu es digne de l\'Armure legendaire.'
+        : 'Smaug: Bonne reponse. Voici l\'Armure legendaire.';
+    } else if (normalizedAnswer.length > 0) {
+      hintMessage = 'Smaug: Mauvaise reponse. Sans Armure legendaire, Maleficus est impossible a tuer.';
+    } else {
+      hintMessage = 'Smaug: Reviens me voir si tu oses repondre a mon enigme.';
+    }
+    return true;
+  }
+
+  openDragonDialog();
+
+  return true;
+}
+
+function openDragonDialog() {
+  if (!dragonDialog || !dragonDialogQuestion || !dragonDialogInput) {
+    return;
+  }
+  clearMovementKeys();
+  isDragonDialogOpen = true;
+  dragonDialogQuestion.textContent = dragonRiddle.question;
+  dragonDialogInput.value = '';
+  dragonDialog.classList.remove('hidden');
+  dragonDialogInput.focus();
+}
+
+function closeDragonDialog() {
+  clearMovementKeys();
+  isDragonDialogOpen = false;
+  dragonDialog.classList.add('hidden');
+}
+
+function isDragonDialogVisible() {
+  return !!dragonDialog && !dragonDialog.classList.contains('hidden');
+}
+
+function clearMovementKeys() {
+  Object.keys(keys).forEach((key) => {
+    keys[key] = false;
+  });
+}
+
+function submitDragonDialogAnswer() {
+  const normalizedAnswer = dragonDialogInput.value.trim().toLowerCase();
+  closeDragonDialog();
+
+  if (!normalizedAnswer) {
+    hintMessage = 'Smaug: Le silence n\'est pas une reponse.';
+    return;
+  }
+
+  const isCorrect = dragonRiddle.acceptedAnswers.includes(normalizedAnswer);
+  if (isCorrect) {
+    const hadArmorBefore = getInventoryItemCount('legendaryArmor') > 0;
+    dragonRiddleSolved = true;
+    if (!hadArmorBefore) {
+      addItemsToInventory([{ id: 'legendaryArmor', quantity: 1 }]);
+    }
+    hintMessage = hadArmorBefore
+      ? 'Smaug: Encore juste. Tu connais deja la reponse, guerrier.'
+      : 'Smaug: Bonne reponse. Voici l\'Armure legendaire. Tu peux desormais completer le set final.';
+    return;
+  }
+
+  hintMessage = 'Smaug: Mauvaise reponse. Sans Armure legendaire, Maleficus est impossible a tuer.';
 }
 
 function tryHitMiniBoss() {
@@ -4228,7 +4810,8 @@ function tryHitMiniBoss() {
   nearbyBoss.hp -= 1;
   if (nearbyBoss.hp <= 0) {
     nearbyBoss.hp = 0;
-    hintMessage = `${nearbyBoss.name} vaincu (${countDefeatedMiniBosses()}/${miniBosses.length})`;
+    addItemsToInventory([{ id: nearbyBoss.rewardItemId, quantity: 1 }]);
+    hintMessage = `${nearbyBoss.name} vaincu: ${nearbyBoss.rewardLabel} obtenu (${countDefeatedMiniBosses()}/${miniBosses.length})`;
   } else {
     hintMessage = `${nearbyBoss.name} touché (${nearbyBoss.hp} PV)`;
   }
@@ -4266,7 +4849,11 @@ function tryCollectMountainBossKey() {
 
   mountainBossKey.isCollected = true;
   addItemsToInventory([{ id: 'bossKey', quantity: 1 }]);
-  hintMessage = 'Clé du boss récupérée';
+  if (hasFullLegendarySet()) {
+    hintMessage = 'Cle du boss recuperee. Set legendaire complet: tu peux survivre dans le sanctuaire final.';
+  } else {
+    hintMessage = `Cle du boss recuperee. Pour survivre: Casque legendaire, Armure legendaire, Bottes legendaires. Manque: ${formatMissingLegendaryRequirements()}`;
+  }
   return true;
 }
 
@@ -4282,6 +4869,30 @@ function isPlayerNearMountainBossKey() {
   const centerX = player.x + player.width / 2;
   const centerY = player.y + player.height / 2;
   return Math.hypot(centerX - mountainBossKey.x, centerY - mountainBossKey.y) <= mountainBossKey.radius + 58;
+}
+
+function isPlayerNearDragon() {
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  const dragonCenterX = sleepingDragon.x;
+  const dragonCenterY = sleepingDragon.y + 60;
+
+  // Noyau du corps du dragon.
+  if (Math.hypot(centerX - dragonCenterX, centerY - dragonCenterY) <= 230) {
+    return true;
+  }
+
+  // Zone large couvrant ailes + queue, pour une interaction plus tolérante.
+  const dragonZone = {
+    x: sleepingDragon.x - 190,
+    y: sleepingDragon.y - 170,
+    w: 380,
+    h: 360
+  };
+
+  const nearestX = clamp(centerX, dragonZone.x, dragonZone.x + dragonZone.w);
+  const nearestY = clamp(centerY, dragonZone.y, dragonZone.y + dragonZone.h);
+  return Math.hypot(centerX - nearestX, centerY - nearestY) <= 90;
 }
 
 function getNearbyMiniBoss() {
@@ -4532,6 +5143,22 @@ function getInventoryItemCount(itemId) {
   return item ? item.quantity : 0;
 }
 
+function getMissingLegendaryRequirements() {
+  return finalBossLegendaryRequirements.filter((requirement) => getInventoryItemCount(requirement.id) <= 0);
+}
+
+function hasFullLegendarySet() {
+  return getMissingLegendaryRequirements().length === 0;
+}
+
+function formatMissingLegendaryRequirements() {
+  const missing = getMissingLegendaryRequirements();
+  if (missing.length === 0) {
+    return 'aucun';
+  }
+  return missing.map((requirement) => requirement.label).join(', ');
+}
+
 function addInventoryItem(itemId, quantity = 1, shouldRender = true) {
   const definition = inventoryItemDefinitions[itemId];
   if (!definition) {
@@ -4609,6 +5236,7 @@ function updatePlayerInventoryFlags() {
   player.hasStarterWeapon = getInventoryItemCount('shortSword') > 0 || getInventoryItemCount('noviceStaff') > 0;
   player.hasStarterShield = getInventoryItemCount('roundShield') > 0;
   player.hasStarterPotions = getInventoryItemCount('healingPotion') > 0;
+  player.hasLegendaryArmor = getInventoryItemCount('legendaryArmor') > 0;
 }
 
 function applyPassiveInventoryEffect(itemId) {
@@ -4681,19 +5309,21 @@ function useInventoryItem(itemId) {
     syncResourceInventory(false);
     hintMessage = 'Gourde bue: +35 soif';
   } else if (itemId === 'berries') {
-    if (survival.hunger >= survival.maxHunger) {
-      hintMessage = 'Faim deja pleine';
-      return false;
-    }
-
     if (survivalInventory.berries <= 0) {
       return false;
     }
 
     survivalInventory.berries -= 1;
-    survival.hunger = clamp(survival.hunger + 15, 0, survival.maxHunger);
+    const berryEffect = applyForestBerryEffect();
     syncResourceInventory(false);
-    hintMessage = 'Baies mangees: +15 faim';
+
+    if (berryEffect.randomHungerLoss > 0) {
+      hintMessage = berryEffect.gotPoisoned
+        ? `Baie sauvage: +${berryEffect.baseHungerRestore} faim, -${berryEffect.randomHungerLoss} faim, poison !`
+        : `Baie sauvage: +${berryEffect.baseHungerRestore} faim, -${berryEffect.randomHungerLoss} faim`;
+    } else {
+      hintMessage = `Baies mangees: +${berryEffect.baseHungerRestore} faim`;
+    }
   } else if (itemId === 'cookedMeat') {
     if (survival.hunger >= survival.maxHunger) {
       hintMessage = 'Faim deja pleine';
@@ -4803,6 +5433,8 @@ function initSurvival() {
   survival.temperature = 20;
   survival.dayTime = 360;
   survival.day = 1;
+  survival.poisonUntil = 0;
+  survival.nextPoisonTick = 0;
   survivalInventory.wood = 2;
   survivalInventory.stone = 1;
   survivalInventory.berries = 3;
@@ -4865,6 +5497,22 @@ function updateSurvival() {
   if (survival.temperature > 35) {
     player.health -= survival.overheatDamage * deltaSeconds * ((survival.temperature - 35) / 10);
   }
+
+  // Effet de poison (le Sorcier subit moins de dégâts)
+  if (survival.poisonUntil > now) {
+    if (now >= survival.nextPoisonTick) {
+      const poisonMultiplier = player.className === 'Sorcier' ? 0.5 : 1;
+      player.health -= survival.poisonDamagePerTick * poisonMultiplier;
+      survival.nextPoisonTick = now + 1000;
+      if (Math.random() < 0.25) {
+        hintMessage = player.className === 'Sorcier'
+          ? 'Poison affaibli: le Sorcier résiste.'
+          : 'Poison en cours...';
+      }
+    }
+  } else {
+    survival.poisonUntil = 0;
+  }
   
   player.health = clamp(player.health, 0, player.maxHealth);
   
@@ -4915,6 +5563,34 @@ function updateSurvivalHUD() {
     dayNightIndicator.textContent = `${icon} Jour ${survival.day} - ${timeStr}`;
     dayNightIndicator.style.color = survival.isNight ? '#94a3b8' : '#fbbf24';
   }
+}
+
+function applyForestBerryEffect() {
+  const now = Date.now();
+  const baseHungerRestore = 25;
+  survival.hunger = clamp(survival.hunger + baseHungerRestore, 0, survival.maxHunger);
+
+  let randomHungerLoss = 0;
+  let gotPoisoned = false;
+
+  // En forêt, certaines baies sont mauvaises: elles peuvent retirer de la faim.
+  if (currentZone === 'Forêt Ancienne' && Math.random() < 0.35) {
+    randomHungerLoss = Math.floor(Math.random() * 13) + 8; // 8..20
+    survival.hunger = clamp(survival.hunger - randomHungerLoss, 0, survival.maxHunger);
+
+    gotPoisoned = Math.random() < 0.6;
+    if (gotPoisoned) {
+      const poisonDurationMs = player.className === 'Sorcier' ? 4000 : 8000;
+      survival.poisonUntil = Math.max(survival.poisonUntil, now + poisonDurationMs);
+      survival.nextPoisonTick = now + 800;
+    }
+  }
+
+  return {
+    baseHungerRestore,
+    randomHungerLoss,
+    gotPoisoned
+  };
 }
 
 function isNearCampfire() {
