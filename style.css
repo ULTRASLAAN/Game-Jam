@@ -24,6 +24,230 @@ body {
   padding: 1.25rem;
 }
 
+.intro-panel {
+  position: relative;
+  overflow: hidden;
+  min-height: 500px;
+  background: radial-gradient(circle at 18% 14%, rgba(251, 191, 36, 0.18), transparent 38%),
+              radial-gradient(circle at 84% 8%, rgba(239, 68, 68, 0.2), transparent 40%),
+              linear-gradient(140deg, #0b1120 0%, #172554 50%, #1e293b 100%);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.intro-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mist,
+.ember {
+  position: absolute;
+  border-radius: 999px;
+}
+
+.mist {
+  filter: blur(6px);
+  background: rgba(148, 163, 184, 0.18);
+  animation: drift 10s ease-in-out infinite;
+}
+
+.mist-1 {
+  width: 240px;
+  height: 92px;
+  left: -30px;
+  top: 26%;
+}
+
+.mist-2 {
+  width: 300px;
+  height: 110px;
+  right: -70px;
+  top: 52%;
+  animation-delay: 1.3s;
+}
+
+.mist-3 {
+  width: 220px;
+  height: 84px;
+  left: 42%;
+  top: 72%;
+  animation-delay: 0.6s;
+}
+
+.ember {
+  width: 8px;
+  height: 8px;
+  background: rgba(251, 191, 36, 0.72);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.8);
+  animation: emberRise 3.8s linear infinite;
+}
+
+.ember-1 {
+  left: 18%;
+  bottom: 16%;
+}
+
+.ember-2 {
+  left: 56%;
+  bottom: 14%;
+  animation-delay: 1.1s;
+}
+
+.ember-3 {
+  right: 18%;
+  bottom: 22%;
+  animation-delay: 2s;
+}
+
+.intro-step {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  width: min(760px, 100%);
+  margin: 0 auto;
+}
+
+#title-screen {
+  min-height: 450px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  color: #fbbf24;
+}
+
+#title-screen h1 {
+  font-size: clamp(2.2rem, 4.3vw, 3.4rem);
+  margin: 0.2rem 0;
+}
+
+#setup-screen {
+  max-width: 760px;
+}
+
+#setup-screen h2 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.field-label {
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.menu-input {
+  width: min(360px, 100%);
+  border: 1px solid #475569;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.8);
+  font-size: 0.95rem;
+}
+
+.menu-input:focus {
+  outline: 2px solid #f59e0b;
+  outline-offset: 1px;
+}
+
+.setup-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 0.4rem;
+}
+
+.setup-columns h3 {
+  margin: 0 0 0.45rem;
+  color: #e2e8f0;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.choice-btn,
+.primary-btn,
+.secondary-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.choice-btn {
+  background: rgba(15, 23, 42, 0.76);
+  color: #e2e8f0;
+  border: 1px solid #475569;
+}
+
+.choice-btn.is-selected {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  color: #f8fafc;
+  border-color: rgba(125, 211, 252, 0.88);
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #0f172a;
+}
+
+.primary-btn:hover {
+  filter: brightness(1.08);
+}
+
+.secondary-btn {
+  background: rgba(30, 41, 59, 0.86);
+  color: #e2e8f0;
+  border: 1px solid #64748b;
+}
+
+.secondary-btn:hover {
+  background: rgba(51, 65, 85, 0.9);
+}
+
+.story-briefing {
+  margin: 0.3rem 0 0;
+  padding: 0.72rem 0.82rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.setup-actions {
+  margin-top: 0.35rem;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+@keyframes drift {
+  0%, 100% { transform: translateX(0); opacity: 0.35; }
+  50% { transform: translateX(26px); opacity: 0.6; }
+}
+
+@keyframes emberRise {
+  0% { transform: translateY(0) scale(0.8); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(-130px) scale(1.2); opacity: 0; }
+}
+
 h1 {
   margin: 0 0 0.5rem;
 }
@@ -388,5 +612,20 @@ h1 {
 
 #dragon-dialog-cancel:hover {
   background: #475569;
+}
+
+@media (max-width: 760px) {
+  .intro-panel {
+    min-height: 560px;
+  }
+
+  .setup-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
 }
 

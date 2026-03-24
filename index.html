@@ -4,34 +4,58 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Monde Ouvert - Temple des Brumes</title>
-  <link rel="stylesheet" href="style.css?v=20260323a" />
+  <link rel="stylesheet" href="style.css?v=20260324a" />
 </head>
 <body>
   <main class="app">
-    <section id="character-screen" class="panel">
-      <h1>Temple des Brumes</h1>
-      <p class="subtitle">Choisis ton personnage pour commencer l'aventure.</p>
+    <section id="character-screen" class="panel intro-panel">
+      <div class="intro-atmosphere" aria-hidden="true">
+        <span class="mist mist-1"></span>
+        <span class="mist mist-2"></span>
+        <span class="mist mist-3"></span>
+        <span class="ember ember-1"></span>
+        <span class="ember ember-2"></span>
+        <span class="ember ember-3"></span>
+      </div>
 
-      <div class="cards">
-        <article class="card" data-class="barbare">
-          <h2>Barbare</h2>
-          <p>Puissant au corps à corps.</p>
-          <ul>
-            <li>Force : <strong>100</strong></li>
-            <li>Mage : <strong>50</strong></li>
-          </ul>
-          <button class="select-btn" data-class="barbare">Choisir Barbare</button>
-        </article>
+      <div id="title-screen" class="intro-step">
+        <p class="eyebrow">Chroniques des Brumes</p>
+        <h1>Temple des Brumes</h1>
+        <p class="subtitle">Rassemble ton courage, traverse les terres brisées et défie Maléficus.</p>
+        <button id="play-btn" class="primary-btn" type="button">Jouer</button>
+      </div>
 
-        <article class="card" data-class="sorcier">
-          <h2>Sorcier</h2>
-          <p>Maîtrise de la magie ancienne.</p>
-          <ul>
-            <li>Mage : <strong>100</strong></li>
-            <li>Force : <strong>50</strong></li>
-          </ul>
-          <button class="select-btn" data-class="sorcier">Choisir Sorcier</button>
-        </article>
+      <div id="setup-screen" class="intro-step hidden">
+        <h2>Prépare ton aventure</h2>
+
+        <label class="field-label" for="player-name-input">Nom du héros</label>
+        <input id="player-name-input" class="menu-input" type="text" maxlength="18" placeholder="Ex: Ardan" />
+
+        <div class="setup-columns">
+          <section>
+            <h3>Classe</h3>
+            <div class="choice-row">
+              <button class="choice-btn class-choice-btn is-selected" data-class="barbare" type="button">Barbare</button>
+              <button class="choice-btn class-choice-btn" data-class="sorcier" type="button">Sorcier</button>
+            </div>
+          </section>
+
+          <section>
+            <h3>Difficulté</h3>
+            <div class="choice-row">
+              <button class="choice-btn difficulty-choice-btn" data-difficulty="facile" type="button">Facile</button>
+              <button class="choice-btn difficulty-choice-btn is-selected" data-difficulty="normal" type="button">Normal</button>
+              <button class="choice-btn difficulty-choice-btn" data-difficulty="hardcore" type="button">Hardcore</button>
+            </div>
+          </section>
+        </div>
+
+        <p id="story-briefing" class="story-briefing"></p>
+
+        <div class="setup-actions">
+          <button id="back-title-btn" class="secondary-btn" type="button">Retour</button>
+          <button id="start-adventure-btn" class="primary-btn" type="button">Entrer dans le monde</button>
+        </div>
       </div>
     </section>
 
@@ -99,6 +123,6 @@
     </section>
   </main>
 
-  <script src="game.js?v=20260323a"></script>
+  <script src="game.js?v=20260324a"></script>
 </body>
 </html>

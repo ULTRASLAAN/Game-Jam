@@ -14,8 +14,15 @@ const dragonDialogQuestion = document.getElementById('dragon-dialog-question');
 const dragonDialogForm = document.getElementById('dragon-dialog-form');
 const dragonDialogInput = document.getElementById('dragon-dialog-input');
 const dragonDialogCancel = document.getElementById('dragon-dialog-cancel');
-const buttons = document.querySelectorAll('.select-btn');
-const cards = document.querySelectorAll('.card');
+const titleScreen = document.getElementById('title-screen');
+const setupScreen = document.getElementById('setup-screen');
+const playButton = document.getElementById('play-btn');
+const backTitleButton = document.getElementById('back-title-btn');
+const startAdventureButton = document.getElementById('start-adventure-btn');
+const playerNameInput = document.getElementById('player-name-input');
+const storyBriefing = document.getElementById('story-briefing');
+const classChoiceButtons = document.querySelectorAll('.class-choice-btn');
+const difficultyChoiceButtons = document.querySelectorAll('.difficulty-choice-btn');
 
 const hungerFill = document.getElementById('hunger-fill');
 const hungerText = document.getElementById('hunger-text');
@@ -607,7 +614,8 @@ for (let i = 0; i < 12; i++) {
 }
 
 let gameStarted = false;
-let selectedClass = null;
+let selectedClass = 'barbare';
+let selectedDifficulty = 'normal';
 let currentZone = 'Temple Chinois';
 let hintMessage = 'Objectif: explore les cerisiers';
 let inventoryOpen = false;
@@ -652,6 +660,21 @@ const survival = {
   nearCampfire: false,
   poisonUntil: 0,
   nextPoisonTick: 0
+};
+
+const difficultyLabels = {
+  facile: 'Facile',
+  normal: 'Normal',
+  hardcore: 'Hardcore'
+};
+
+const baseDifficultySettings = {
+  hungerRate: survival.hungerRate,
+  thirstRate: survival.thirstRate,
+  starvingDamage: survival.starvingDamage,
+  dehydrationDamage: survival.dehydrationDamage,
+  finalBossMaxHp: finalBoss.maxHp,
+  finalBossContactDamage: finalBoss.contactDamage
 };
 
 // Ressources collectables dans le monde
@@ -748,6 +771,7 @@ const player = {
   mage: 0,
   force: 0,
   className: '',
+  displayName: 'Aventurier',
   hasStarterWeapon: false,
   hasStarterShield: false,
   hasStarterPotions: false,
@@ -892,29 +916,156 @@ const keys = {
   a: false
 };
 
-buttons.forEach((button) => {
+initializeIntroMenu();
+
+if (playButton) {
+  playButton.addEventListener('click', () => {
+    showSetupScreen();
+  });
+}
+
+if (backTitleButton) {
+  backTitleButton.addEventListener('click', () => {
+    showTitleScreen();
+  });
+}
+
+classChoiceButtons.forEach((button) => {
   button.addEventListener('click', () => {
-    const choice = button.dataset.class;
-    startGame(choice);
+    selectedClass = button.dataset.class || 'barbare';
+    classChoiceButtons.forEach((btn) => btn.classList.toggle('is-selected', btn === button));
+    updateIntroBriefing();
   });
 });
 
-cards.forEach((card) => {
-  card.addEventListener('click', (event) => {
-    if (gameStarted) return;
-
-    const target = event.target;
-    if (target instanceof HTMLButtonElement && target.classList.contains('select-btn')) {
-      return;
-    }
-
-    const choice = card.dataset.class;
-    startGame(choice);
+difficultyChoiceButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    selectedDifficulty = button.dataset.difficulty || 'normal';
+    difficultyChoiceButtons.forEach((btn) => btn.classList.toggle('is-selected', btn === button));
+    updateIntroBriefing();
   });
 });
+
+if (playerNameInput) {
+  playerNameInput.addEventListener('input', () => {
+    updateIntroBriefing();
+  });
+}
+
+if (startAdventureButton) {
+  startAdventureButton.addEventListener('click', () => {
+    const desiredName = sanitizePlayerName(playerNameInput ? playerNameInput.value : '');
+    startGame(selectedClass || 'barbare', selectedDifficulty || 'normal', desiredName);
+  });
+}
+
+function initializeIntroMenu() {
+  selectedClass = 'barbare';
+  selectedDifficulty = 'normal';
+  showTitleScreen();
+  if (playerNameInput) {
+    playerNameInput.value = 'Aventurier';
+  }
+  classChoiceButtons.forEach((btn) => {
+    btn.classList.toggle('is-selected', btn.dataset.class === selectedClass);
+  });
+  difficultyChoiceButtons.forEach((btn) => {
+    btn.classList.toggle('is-selected', btn.dataset.difficulty === selectedDifficulty);
+  });
+  updateIntroBriefing();
+}
+
+function showTitleScreen() {
+  if (titleScreen) {
+    titleScreen.classList.remove('hidden');
+  }
+  if (setupScreen) {
+    setupScreen.classList.add('hidden');
+  }
+}
+
+function showSetupScreen() {
+  if (titleScreen) {
+    titleScreen.classList.add('hidden');
+  }
+  if (setupScreen) {
+    setupScreen.classList.remove('hidden');
+  }
+  if (playerNameInput) {
+    playerNameInput.focus();
+    playerNameInput.select();
+  }
+  updateIntroBriefing();
+}
+
+function sanitizePlayerName(rawName) {
+  const cleaned = (rawName || '').replace(/\s+/g, ' ').trim();
+  return cleaned.length > 0 ? cleaned.slice(0, 18) : 'Aventurier';
+}
+
+function getClassLabel(classChoice) {
+  return classChoice === 'sorcier' ? 'Sorcier' : 'Barbare';
+}
+
+function getDifficultyLabel() {
+  return difficultyLabels[selectedDifficulty] || 'Normal';
+}
+
+function updateIntroBriefing() {
+  if (!storyBriefing) {
+    return;
+  }
+
+  const heroName = sanitizePlayerName(playerNameInput ? playerNameInput.value : '');
+  const classLabel = getClassLabel(selectedClass);
+  const difficultyLabel = getDifficultyLabel();
+  storyBriefing.textContent = `${heroName}, ${classLabel} des terres oubliées, approche du Temple des Brumes.\nSmaug détient l'Armure légendaire: réponds à son énigme pour espérer survivre.\nDifficulté ${difficultyLabel}: traverse les zones, complète ton set, puis affronte Maléficus.`;
+}
+
+function applyDifficultyPreset(difficulty) {
+  survival.hungerRate = baseDifficultySettings.hungerRate;
+  survival.thirstRate = baseDifficultySettings.thirstRate;
+  survival.starvingDamage = baseDifficultySettings.starvingDamage;
+  survival.dehydrationDamage = baseDifficultySettings.dehydrationDamage;
+  finalBoss.maxHp = baseDifficultySettings.finalBossMaxHp;
+  finalBoss.contactDamage = baseDifficultySettings.finalBossContactDamage;
+
+  if (difficulty === 'facile') {
+    player.maxHealth += 20;
+    player.health = player.maxHealth;
+    player.speed += 0.2;
+    survival.hungerRate *= 0.8;
+    survival.thirstRate *= 0.8;
+    finalBoss.maxHp = Math.max(14, Math.round(baseDifficultySettings.finalBossMaxHp * 0.85));
+    finalBoss.contactDamage = Math.max(1, baseDifficultySettings.finalBossContactDamage - 0.5);
+    return;
+  }
+
+  if (difficulty === 'hardcore') {
+    player.maxHealth = Math.max(70, player.maxHealth - 20);
+    player.health = player.maxHealth;
+    player.speed = Math.max(2.2, player.speed - 0.1);
+    survival.hungerRate *= 1.3;
+    survival.thirstRate *= 1.3;
+    survival.starvingDamage *= 1.35;
+    survival.dehydrationDamage *= 1.35;
+    finalBoss.maxHp = Math.round(baseDifficultySettings.finalBossMaxHp * 1.25);
+    finalBoss.contactDamage = baseDifficultySettings.finalBossContactDamage + 1;
+  }
+}
 
 window.addEventListener('keydown', (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+
+  if (!gameStarted) {
+    if (key === 'Enter' && setupScreen && !setupScreen.classList.contains('hidden')) {
+      if (startAdventureButton) {
+        startAdventureButton.click();
+      }
+      event.preventDefault();
+    }
+    return;
+  }
 
   if (isDragonDialogVisible()) {
     if (key === 'Escape') {
@@ -959,6 +1110,9 @@ window.addEventListener('keydown', (event) => {
 
 window.addEventListener('keyup', (event) => {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (!gameStarted) {
+    return;
+  }
   if (isDragonDialogVisible()) {
     if (key in keys) {
       keys[key] = false;
@@ -981,10 +1135,12 @@ dragonDialogCancel.addEventListener('click', () => {
   hintMessage = 'Smaug: Reviens me voir si tu oses repondre a mon enigme.';
 });
 
-function startGame(choice) {
+function startGame(choice, difficulty = 'normal', customName = 'Aventurier') {
   if (gameStarted) return;
 
   selectedClass = choice;
+  selectedDifficulty = difficulty;
+  player.displayName = sanitizePlayerName(customName);
   starterChest.isOpened = false;
   entryBarrier.isOpen = false;
   finalBarrier.isOpen = false;
@@ -1045,6 +1201,8 @@ function startGame(choice) {
     player.speed = 2.8;
   }
 
+  applyDifficultyPreset(selectedDifficulty);
+
   characterScreen.classList.add('hidden');
   gameScreen.classList.remove('hidden');
   buildInventory(choice);
@@ -1082,7 +1240,7 @@ function update() {
   }
 
   if (inventoryOpen) {
-    playerInfo.textContent = `${player.className} | Force: ${player.force} | Mage: ${player.mage} | Zone: ${currentZone} | Inventaire ouvert`;
+    playerInfo.textContent = `${player.displayName} (${player.className}) | Diff: ${getDifficultyLabel()} | Force: ${player.force} | Mage: ${player.mage} | Zone: ${currentZone} | Inventaire ouvert`;
     updateHealthHud();
     return;
   }
@@ -1135,7 +1293,7 @@ function update() {
     WORLD_HEIGHT - canvas.height
   );
 
-  playerInfo.textContent = `${player.className} | Force: ${player.force} | Mage: ${player.mage} | Zone: ${currentZone} | Portail: ${entryBarrier.isOpen ? 'Ouvert' : 'Fermé'}`;
+  playerInfo.textContent = `${player.displayName} (${player.className}) | Diff: ${getDifficultyLabel()} | Force: ${player.force} | Mage: ${player.mage} | Zone: ${currentZone} | Portail: ${entryBarrier.isOpen ? 'Ouvert' : 'Fermé'}`;
   updateHealthHud();
 
   const nearbyForestChest = getNearbyForestChest();
@@ -6015,6 +6173,7 @@ function restartGame() {
   gameStarted = false;
   characterScreen.classList.remove('hidden');
   gameScreen.classList.add('hidden');
+  initializeIntroMenu();
 }
 
 // Écouter la touche R pour recommencer
