@@ -28,8 +28,6 @@ const hungerFill = document.getElementById('hunger-fill');
 const hungerText = document.getElementById('hunger-text');
 const thirstFill = document.getElementById('thirst-fill');
 const thirstText = document.getElementById('thirst-text');
-const tempFill = document.getElementById('temp-fill');
-const tempText = document.getElementById('temp-text');
 const dayNightIndicator = document.getElementById('day-night-indicator');
 
 const TILE = 48;
@@ -340,8 +338,8 @@ const miniBossSubBoss = {
   // Attaque de flammes
   lastFireTime: 0,
   fireInterval: 1500, // Crache des flammes toutes les 1.5 secondes
-  contactDamage: 2, // Dégâts au contact
-  flameDamage: 1.5 // Dégâts par flamme
+  contactDamage: 2.8, // Dégâts au contact
+  flameDamage: 2.2 // Dégâts par flamme
 };
 
 // Projectiles de flammes du Cerbère
@@ -560,7 +558,9 @@ const finalBoss = {
   laserStartTime: 0,
   laserDurationMs: 2200,
   lastLaserTime: 0,
-  lastLaserHitTime: 0
+  lastLaserHitTime: 0,
+  // Le boss ne s'active qu'en entrant dans son arene
+  isAwake: false
 };
 
 const finalBossOrbs = []; // { x, y, vx, vy, r, phase }
@@ -628,25 +628,48 @@ let isGameOver = false;
 let gameOverReason = '';
 let isVictory = false;
 
+const mainQuestSteps = [
+  { id: 'cherrySearch', label: 'Fouiller les cerisiers' },
+  { id: 'findChest', label: 'Trouver le coffre' },
+  { id: 'exploreWorld', label: 'Explorer le monde' },
+  { id: 'searchChests', label: 'Fouiller les coffres' },
+  { id: 'killMiniBosses', label: 'Tuer les mini-boss' },
+  { id: 'killSubBoss', label: 'Tuer le sous-boss' },
+  { id: 'findDragon', label: 'Trouver le dragon' },
+  { id: 'solveRiddle', label: 'Resoudre l enigme' }
+];
+
+const visitedWorldZones = {
+  'Temple Chinois': false,
+  'Forêt Ancienne': false,
+  'Montagnes Brisées': false
+};
+
+const mainQuestProgress = {
+  cherrySearch: false,
+  findChest: false,
+  exploreWorld: false,
+  searchChests: false,
+  killMiniBosses: false,
+  killSubBoss: false,
+  findDragon: false,
+  solveRiddle: false
+};
+
 // === SYSTÈME DE SURVIE ===
 const survival = {
   hunger: 100,
   maxHunger: 100,
   thirst: 100,
   maxThirst: 100,
-  temperature: 20, // en °C, optimal entre 15-25
-  minTemp: -10,
-  maxTemp: 45,
   
   // Taux de diminution (par seconde)
-  hungerRate: 0.8,
-  thirstRate: 1.2,
+  hungerRate: 1.0,
+  thirstRate: 1.5,
   
   // Dégâts de survie
-  starvingDamage: 2,
-  dehydrationDamage: 3,
-  freezingDamage: 1.5,
-  overheatDamage: 1,
+  starvingDamage: 2.8,
+  dehydrationDamage: 3.8,
   poisonDamagePerTick: 2,
   
   lastUpdate: 0,
@@ -658,7 +681,6 @@ const survival = {
   
   // État
   isNight: false,
-  nearCampfire: false,
   poisonUntil: 0,
   nextPoisonTick: 0
 };
@@ -675,7 +697,9 @@ const baseDifficultySettings = {
   starvingDamage: survival.starvingDamage,
   dehydrationDamage: survival.dehydrationDamage,
   finalBossMaxHp: finalBoss.maxHp,
-  finalBossContactDamage: finalBoss.contactDamage
+  finalBossContactDamage: finalBoss.contactDamage,
+  beeSwarmDamage: 4,
+  beeSwarmCooldownMs: 300
 };
 
 // Ressources collectables dans le monde
@@ -771,8 +795,8 @@ const beeSwarm = {
   orbitAngle: 0,
   orbitRadius: 14,
   hitRadius: 68,
-  contactDamage: 1,
-  damageCooldownMs: 450,
+  contactDamage: 4,
+  damageCooldownMs: 300,
   lastDamageTime: 0
 };
 
@@ -1045,15 +1069,31 @@ function applyDifficultyPreset(difficulty) {
   survival.dehydrationDamage = baseDifficultySettings.dehydrationDamage;
   finalBoss.maxHp = baseDifficultySettings.finalBossMaxHp;
   finalBoss.contactDamage = baseDifficultySettings.finalBossContactDamage;
+  beeSwarm.contactDamage = baseDifficultySettings.beeSwarmDamage;
+  beeSwarm.damageCooldownMs = baseDifficultySettings.beeSwarmCooldownMs;
 
   if (difficulty === 'facile') {
     player.maxHealth += 20;
     player.health = player.maxHealth;
     player.speed += 0.2;
-    survival.hungerRate *= 0.8;
-    survival.thirstRate *= 0.8;
+    survival.hungerRate *= 0.9;
+    survival.thirstRate *= 0.9;
     finalBoss.maxHp = Math.max(14, Math.round(baseDifficultySettings.finalBossMaxHp * 0.85));
     finalBoss.contactDamage = Math.max(1, baseDifficultySettings.finalBossContactDamage - 0.5);
+    beeSwarm.contactDamage = 3.5;
+    beeSwarm.damageCooldownMs = 340;
+    return;
+  }
+
+  if (difficulty === 'normal') {
+    survival.hungerRate *= 1.25;
+    survival.thirstRate *= 1.25;
+    survival.starvingDamage *= 1.25;
+    survival.dehydrationDamage *= 1.25;
+    finalBoss.maxHp = Math.round(baseDifficultySettings.finalBossMaxHp * 1.22);
+    finalBoss.contactDamage = baseDifficultySettings.finalBossContactDamage + 1.15;
+    beeSwarm.contactDamage = 4.6;
+    beeSwarm.damageCooldownMs = 260;
     return;
   }
 
@@ -1061,12 +1101,14 @@ function applyDifficultyPreset(difficulty) {
     player.maxHealth = Math.max(70, player.maxHealth - 20);
     player.health = player.maxHealth;
     player.speed = Math.max(2.2, player.speed - 0.1);
-    survival.hungerRate *= 1.3;
-    survival.thirstRate *= 1.3;
-    survival.starvingDamage *= 1.35;
-    survival.dehydrationDamage *= 1.35;
-    finalBoss.maxHp = Math.round(baseDifficultySettings.finalBossMaxHp * 1.25);
-    finalBoss.contactDamage = baseDifficultySettings.finalBossContactDamage + 1;
+    survival.hungerRate *= 1.5;
+    survival.thirstRate *= 1.5;
+    survival.starvingDamage *= 1.55;
+    survival.dehydrationDamage *= 1.55;
+    finalBoss.maxHp = Math.round(baseDifficultySettings.finalBossMaxHp * 1.4);
+    finalBoss.contactDamage = baseDifficultySettings.finalBossContactDamage + 1.8;
+    beeSwarm.contactDamage = 5.5;
+    beeSwarm.damageCooldownMs = 210;
   }
 }
 
@@ -1179,13 +1221,13 @@ function startGame(choice, difficulty = 'normal', customName = 'Aventurier') {
   survivalResources.berries.forEach(b => { b.collected = false; });
   survivalResources.wood.forEach(w => { w.collected = false; });
   survivalResources.stone.forEach(s => { s.collected = false; });
-  survivalInventory.wood = 2;
-  survivalInventory.stone = 1;
-  survivalInventory.berries = 3;
+  survivalInventory.wood = 1;
+  survivalInventory.stone = 0;
+  survivalInventory.berries = 2;
   survivalInventory.poisonedBerries = 0;
   survivalInventory.rawMeat = 0;
   survivalInventory.cookedMeat = 0;
-  survivalInventory.water = 1;
+  survivalInventory.water = 0;
   
   forestChests.forEach((chest) => {
     chest.isOpened = false;
@@ -1203,6 +1245,7 @@ function startGame(choice, difficulty = 'normal', customName = 'Aventurier') {
   beeSwarm.lastDamageTime = 0;
   mountainHealLastTick = 0;
   dragonRiddleSolved = false;
+  resetMainQuestProgress();
   hintMessage = 'Objectif: explore les cerisiers';
 
   if (choice === 'sorcier') {
@@ -1242,6 +1285,7 @@ function startGame(choice, difficulty = 'normal', customName = 'Aventurier') {
   finalBoss.phase = 1;
   finalBoss.isDashing = false;
   finalBoss.isLasering = false;
+  finalBoss.isAwake = false;
   finalBoss.lastHitTime = 0;
   finalBoss.lastContactTime = 0;
   finalBoss.lastOrbTime = 0;
@@ -1302,6 +1346,7 @@ function update() {
   checkEnemyCollision();
 
   currentZone = findCurrentZone();
+  updateMainQuestProgress();
 
   camera.x = clamp(
     player.x + player.width / 2 - canvas.width / 2,
@@ -1339,10 +1384,10 @@ function update() {
     }
   } else if (getNearbyMiniBoss()) {
     hintMessage = 'Mini-boss repéré: appuie sur E pour attaquer';
+  } else if (!miniBossSubBoss.isUnlocked && currentZone === 'Montagnes Brisées') {
+    hintMessage = `Le sous-boss se declenche apres le 3e mini-boss (${countDefeatedMiniBosses()}/${miniBosses.length})`;
   } else if (isPlayerNearSubBoss() && !miniBossSubBoss.isDefeated) {
-    hintMessage = miniBossSubBoss.isUnlocked
-      ? 'Sous-boss: appuie sur E pour combattre'
-      : `Bats d'abord les mini-boss (${countDefeatedMiniBosses()}/${miniBosses.length})`;
+    hintMessage = 'Sous-boss: appuie sur E pour combattre';
   } else if (!mountainBossKey.isCollected && mountainBossKey.isDropped && isPlayerNearMountainBossKey()) {
     hintMessage = 'La clé du grand boss est là: appuie sur E';
   } else if (isPlayerNearDragon()) {
@@ -1364,12 +1409,10 @@ function update() {
   } else if (finalBoss.isDefeated && currentZone === 'Sanctuaire Final') {
     hintMessage = '🏆 Maléficus vaincu — Le royaume est en paix !';
   } else if (!finalBarrier.isOpen && distanceToFinalBarrier() < 120) {
-    if (mountainBossKey.isCollected && !hasFullLegendarySet()) {
+    if (!hasFullLegendarySet()) {
       hintMessage = `Barriere ouverte, mais set legendaire incomplet: ${formatMissingLegendaryRequirements()}`;
     } else {
-      hintMessage = mountainBossKey.isCollected
-        ? 'Barrière du sanctuaire: appuie sur E'
-        : 'Il faut battre le sous-boss pour obtenir la clé';
+      hintMessage = 'Barrière du sanctuaire: appuie sur E';
     }
   } else if (!entryBarrier.isOpen && distanceToBarrier() < 90) {
     hintMessage = 'Appuie sur E pour ouvrir la barrière';
@@ -1416,6 +1459,7 @@ function draw() {
   drawNightOverlay();
   drawMiniMap();
   drawHint();
+  drawMainQuestHUD();
   drawSurvivalInventoryHUD();
   if (isVictory) drawVictory();
 }
@@ -1426,91 +1470,6 @@ function drawMountainHealingCherry() {
   const pulse = (Math.sin(Date.now() * 0.004) + 1) / 2;
   const time = Date.now() * 0.0007;
 
-  ctx.save();
-
-  // Ombre
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + 190, 92, 12, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Tronc
-  ctx.strokeStyle = '#8b6f47';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(x, y + 100);
-  ctx.lineTo(x, y + 180);
-  ctx.stroke();
-
-  // Grandes branches
-  ctx.strokeStyle = '#8b6f47';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(x - 46, y + 84);
-  ctx.lineTo(x - 18, y - 12);
-  ctx.moveTo(x + 56, y + 84);
-  ctx.lineTo(x + 22, y - 28);
-  ctx.stroke();
-
-  ctx.fillStyle = '#f472b6';
-  const blossomClusters = [
-    { dx: -72, dy: -134, r: 30 },
-    { dx: -26, dy: -142, r: 36 },
-    { dx: 28, dy: -148, r: 38 },
-    { dx: 82, dy: -128, r: 30 },
-    { dx: -94, dy: -92, r: 26 },
-    { dx: -42, dy: -88, r: 34 },
-    { dx: 12, dy: -94, r: 34 },
-    { dx: 62, dy: -86, r: 30 },
-    { dx: 104, dy: -78, r: 24 },
-    { dx: -60, dy: -46, r: 28 },
-    { dx: -8, dy: -36, r: 34 },
-    { dx: 44, dy: -42, r: 30 }
-  ];
-
-  blossomClusters.forEach((cluster) => {
-    ctx.beginPath();
-    ctx.arc(x + cluster.dx, y + cluster.dy, cluster.r, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#fbcfe8';
-    ctx.beginPath();
-    ctx.arc(x + cluster.dx - cluster.r * 0.24, y + cluster.dy - cluster.r * 0.12, cluster.r * 0.44, 0, Math.PI * 2);
-    ctx.arc(x + cluster.dx + cluster.r * 0.22, y + cluster.dy + cluster.r * 0.08, cluster.r * 0.36, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#f472b6';
-  });
-
-  ctx.fillStyle = '#f9a8d4';
-  for (let i = 0; i < 24; i += 1) {
-    const petalX = x - 72 + i * 7;
-    const petalY = y + 28 + (i % 6) * 10 + pulse * 2;
-    ctx.beginPath();
-    ctx.ellipse(petalX, petalY, 4, 2, 0.45, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  mountainHealingCherryPetals.forEach((petal) => {
-    const fallCycle = (time * (petal.speed / 32) + petal.delay) % 7;
-    const normalized = fallCycle / 7;
-    const petalX = x + petal.startX + Math.sin(time * 1.8 + petal.delay) * petal.sway + normalized * 18 * petal.drift;
-    const petalY = y + petal.startY + normalized * 240;
-    const rotation = Math.sin(time * 4 + petal.delay) * 0.8;
-    const alpha = 0.35 + (1 - normalized) * 0.45;
-
-    ctx.save();
-    ctx.translate(petalX, petalY);
-    ctx.rotate(rotation);
-    ctx.fillStyle = `rgba(251, 207, 232, ${alpha.toFixed(3)})`;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, petal.size, petal.size * 0.55, 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = `rgba(244, 114, 182, ${(alpha * 0.75).toFixed(3)})`;
-    ctx.beginPath();
-    ctx.ellipse(-0.8, -0.4, petal.size * 0.42, petal.size * 0.22, 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  });
 
   ctx.fillStyle = '#f8fafc';
   ctx.font = '12px Arial';
@@ -2778,7 +2737,7 @@ function drawFinalGateWall() {
 }
 
 function drawFinalBoss() {
-  if (finalBoss.isDefeated) return;
+  if (finalBoss.isDefeated || !finalBoss.isAwake) return;
 
   const bx = finalBoss.x - camera.x;
   const by = finalBoss.y - camera.y;
@@ -2999,6 +2958,20 @@ function updateFinalBoss() {
   // Only engage when player is in the final zone
   if (currentZone !== 'Sanctuaire Final') return;
 
+  if (!finalBoss.isAwake) {
+    if (!isPlayerInFinalBossArena()) {
+      return;
+    }
+
+    finalBoss.isAwake = true;
+    finalBoss.isDashing = false;
+    finalBoss.isLasering = false;
+    finalBoss.lastOrbTime = now;
+    finalBoss.lastDashTime = now;
+    finalBoss.lastLaserTime = now;
+    hintMessage = '☠ Maleficus s eveille dans son sanctuaire !';
+  }
+
   // --- Determine phase ---
   const hpPct = finalBoss.maxHp > 0 ? finalBoss.hp / finalBoss.maxHp : 0;
   const prevPhase = finalBoss.phase;
@@ -3155,6 +3128,13 @@ function drawFinalBossOrbs() {
 
 function tryHitFinalBoss() {
   if (finalBoss.isDefeated) return false;
+  if (!finalBoss.isAwake) {
+    if (currentZone === 'Sanctuaire Final' && isPlayerInFinalBossArena()) {
+      hintMessage = 'Le boss final est endormi. Entre un peu plus dans son arene pour declencher le combat.';
+      return true;
+    }
+    return false;
+  }
   if (!isPlayerNearFinalBoss()) return false;
   if (!hasFullLegendarySet()) {
     hintMessage = `Impossible de battre Maleficus: equipement legendaire insuffisant (${formatMissingLegendaryRequirements()})`;
@@ -3184,10 +3164,22 @@ function tryHitFinalBoss() {
 
 function isPlayerNearFinalBoss() {
   if (finalBoss.isDefeated) return false;
+  if (!finalBoss.isAwake) return false;
   return Math.hypot(
     (player.x + player.width / 2)  - (finalBoss.x + finalBoss.w / 2),
     (player.y + player.height / 2) - (finalBoss.y + finalBoss.h / 2)
   ) < 90;
+}
+
+function isPlayerInFinalBossArena() {
+  const px = player.x + player.width / 2;
+  const py = player.y + player.height / 2;
+  return (
+    px >= finalBoss.minX - 40 &&
+    px <= finalBoss.maxX + finalBoss.w + 40 &&
+    py >= finalBoss.minY - 40 &&
+    py <= finalBoss.maxY + finalBoss.h + 40
+  );
 }
 
 function drawVictory() {
@@ -3367,17 +3359,17 @@ function drawZones() {
       ctx.fillRect(x, y, zone.w, zone.h * 0.64);
 
       const meadowY = y + zone.h * 0.52;
-      const meadow = ctx.createLinearGradient(x, meadowY, x, y + zone.h);
-      meadow.addColorStop(0, '#7cab4a');
-      meadow.addColorStop(1, '#4c6e2d');
-      ctx.fillStyle = meadow;
-      ctx.fillRect(x, meadowY, zone.w, zone.h - zone.h * 0.52);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = forestGroundPattern || '#0b2e1f';
+      ctx.fillRect(0, zone.h * 0.52, zone.w, zone.h - zone.h * 0.52);
+      ctx.restore();
 
       ctx.save();
       ctx.translate(x, y);
       ctx.globalAlpha = 0.2;
       ctx.fillStyle = mountainGroundPattern || '#475569';
-      ctx.fillRect(0, zone.h * 0.48, zone.w, zone.h * 0.52);
+      ctx.fillRect(0, zone.h * 0.45, zone.w, zone.h * 0.55);
       ctx.restore();
 
       const ridgeGlow = ctx.createLinearGradient(x, y, x, y + zone.h);
@@ -3628,7 +3620,7 @@ function drawMountainDecor() {
   const mountainH = WORLD_HEIGHT;
   const screenX = mountainX - camera.x;
   const screenY = mountainY - camera.y;
-  const mistShift = Math.sin(Date.now() * 0.00055) * 20;
+  const mistShift = 0;
 
   ctx.save();
   ctx.beginPath();
@@ -3658,19 +3650,23 @@ function drawMountainDecor() {
     ctx.fill();
   });
 
-  ctx.fillStyle = '#4e5f71';
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+  ctx.globalAlpha = 0.82;
+  ctx.fillStyle = forestGroundPattern || '#0b2e1f';
   ctx.beginPath();
-  ctx.moveTo(screenX - 80, screenY + 520);
-  ctx.lineTo(screenX + 60, screenY + 440);
-  ctx.lineTo(screenX + 220, screenY + 500);
-  ctx.lineTo(screenX + 360, screenY + 430);
-  ctx.lineTo(screenX + 520, screenY + 520);
-  ctx.lineTo(screenX + 760, screenY + 460);
-  ctx.lineTo(screenX + mountainW + 80, screenY + 560);
-  ctx.lineTo(screenX + mountainW + 80, screenY + 780);
-  ctx.lineTo(screenX - 80, screenY + 780);
+  ctx.moveTo(mountainX - 80, mountainY + 520);
+  ctx.lineTo(mountainX + 60, mountainY + 440);
+  ctx.lineTo(mountainX + 220, mountainY + 500);
+  ctx.lineTo(mountainX + 360, mountainY + 430);
+  ctx.lineTo(mountainX + 520, mountainY + 520);
+  ctx.lineTo(mountainX + 760, mountainY + 460);
+  ctx.lineTo(mountainX + mountainW + 80, mountainY + 560);
+  ctx.lineTo(mountainX + mountainW + 80, mountainY + 780);
+  ctx.lineTo(mountainX - 80, mountainY + 780);
   ctx.closePath();
   ctx.fill();
+  ctx.restore();
 
   for (let i = 0; i < 3; i += 1) {
     const cloudY = screenY + 180 + i * 240;
@@ -3788,35 +3784,58 @@ function createForestGroundPattern() {
   tile.height = 192;
   const patternCtx = tile.getContext('2d');
 
-  patternCtx.fillStyle = '#0f3f2a';
+  patternCtx.fillStyle = '#0b1613';
   patternCtx.fillRect(0, 0, tile.width, tile.height);
 
-  patternCtx.fillStyle = '#1a5a37';
-  for (let i = 0; i < 170; i += 1) {
-    const x = (i * 37) % tile.width;
-    const y = (i * 53) % tile.height;
-    const w = 8 + (i % 6);
-    const h = 5 + (i % 4);
-    patternCtx.fillRect(x, y, w, h);
-  }
-
-  patternCtx.fillStyle = '#0b2e1f';
-  for (let i = 0; i < 220; i += 1) {
-    const x = (i * 29 + 11) % tile.width;
-    const y = (i * 47 + 7) % tile.height;
-    patternCtx.fillRect(x, y, 2, 2);
-  }
-
-  patternCtx.strokeStyle = 'rgba(134, 239, 172, 0.22)';
-  patternCtx.lineWidth = 1;
-  for (let y = 12; y < tile.height; y += 24) {
-    for (let x = 6; x < tile.width; x += 26) {
-      patternCtx.beginPath();
-      patternCtx.moveTo(x, y + 6);
-      patternCtx.lineTo(x + 2, y - 4);
-      patternCtx.lineTo(x + 4, y + 6);
-      patternCtx.stroke();
+  const mossPalette = ['#12201b', '#162720', '#1a2f25', '#20382b', '#1a2b23'];
+  const cell = 8;
+  for (let gy = 0; gy < tile.height / cell; gy += 1) {
+    for (let gx = 0; gx < tile.width / cell; gx += 1) {
+      const idx = (gx * 7 + gy * 11 + gx * gy) % mossPalette.length;
+      patternCtx.fillStyle = mossPalette[idx];
+      patternCtx.fillRect(gx * cell, gy * cell, cell, cell);
     }
+  }
+
+  for (let i = 0; i < 34; i += 1) {
+    const x = (i * 31 + 13) % (tile.width - 18);
+    const y = (i * 47 + 19) % (tile.height - 14);
+    const w = 8 + (i % 4) * 3;
+    const h = 5 + (i % 3) * 2;
+    patternCtx.fillStyle = i % 2 === 0 ? '#3b322b' : '#4a3c32';
+    patternCtx.fillRect(x, y, w, h);
+    patternCtx.fillStyle = 'rgba(15, 10, 8, 0.35)';
+    patternCtx.fillRect(x + 1, y + h - 2, Math.max(2, w - 2), 1);
+  }
+
+  for (let i = 0; i < 120; i += 1) {
+    const x = (i * 17 + 7) % (tile.width - 5);
+    const y = (i * 29 + 11) % (tile.height - 8);
+    patternCtx.fillStyle = '#2a5f44';
+    patternCtx.fillRect(x + 1, y + 2, 1, 5);
+    patternCtx.fillRect(x + 3, y + 1, 1, 6);
+    patternCtx.fillStyle = '#234f3a';
+    patternCtx.fillRect(x, y + 3, 1, 4);
+    patternCtx.fillRect(x + 4, y + 3, 1, 4);
+  }
+
+  for (let i = 0; i < 28; i += 1) {
+    const x = (i * 41 + 23) % (tile.width - 4);
+    const y = (i * 37 + 5) % (tile.height - 4);
+    patternCtx.fillStyle = '#7aa6b7';
+    patternCtx.fillRect(x + 1, y, 1, 1);
+    patternCtx.fillRect(x, y + 1, 1, 1);
+    patternCtx.fillRect(x + 2, y + 1, 1, 1);
+    patternCtx.fillRect(x + 1, y + 2, 1, 1);
+    patternCtx.fillStyle = '#a7d0de';
+    patternCtx.fillRect(x + 1, y + 1, 1, 1);
+  }
+
+  patternCtx.fillStyle = 'rgba(196, 255, 224, 0.08)';
+  for (let i = 0; i < 180; i += 1) {
+    const x = (i * 13 + 3) % tile.width;
+    const y = (i * 19 + 9) % tile.height;
+    patternCtx.fillRect(x, y, 1, 1);
   }
 
   return ctx.createPattern(tile, 'repeat');
@@ -4361,6 +4380,35 @@ function drawMiniMap() {
   ctx.fillText('Carte', mapX + 8, mapY + 14);
 }
 
+function resetMainQuestProgress() {
+  Object.keys(visitedWorldZones).forEach((zoneName) => {
+    visitedWorldZones[zoneName] = false;
+  });
+
+  Object.keys(mainQuestProgress).forEach((stepId) => {
+    mainQuestProgress[stepId] = false;
+  });
+}
+
+function updateMainQuestProgress() {
+  if (Object.prototype.hasOwnProperty.call(visitedWorldZones, currentZone)) {
+    visitedWorldZones[currentZone] = true;
+  }
+
+  const starterChestDistance = distanceToStarterChest();
+  mainQuestProgress.cherrySearch = starterChestDistance < 220 || starterChest.isOpened;
+  mainQuestProgress.findChest = starterChestDistance < 86 || starterChest.isOpened;
+  mainQuestProgress.exploreWorld =
+    visitedWorldZones['Temple Chinois'] &&
+    visitedWorldZones['Forêt Ancienne'] &&
+    visitedWorldZones['Montagnes Brisées'];
+  mainQuestProgress.searchChests = forestChests.every((chest) => chest.isOpened);
+  mainQuestProgress.killMiniBosses = countDefeatedMiniBosses() === miniBosses.length;
+  mainQuestProgress.killSubBoss = miniBossSubBoss.isDefeated;
+  mainQuestProgress.findDragon = dragonRiddleSolved || isPlayerNearDragon();
+  mainQuestProgress.solveRiddle = dragonRiddleSolved;
+}
+
 function drawHint() {
   const panelX = 16;
   const panelY = 84;
@@ -4376,6 +4424,51 @@ function drawHint() {
   ctx.fillStyle = '#f8fafc';
   ctx.font = 'bold 14px Arial';
   ctx.fillText(hintMessage, panelX + 12, panelY + 24);
+}
+
+function drawMainQuestHUD() {
+  const panelW = 362;
+  const panelH = 206;
+  const panelX = canvas.width - panelW - 16;
+  const panelY = 84;
+
+  ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
+  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 13px Arial';
+  ctx.fillText('Ordre de mission', panelX + 12, panelY + 20);
+
+  const nextStepIndex = mainQuestSteps.findIndex((step) => !mainQuestProgress[step.id]);
+
+  ctx.font = '12px Arial';
+  mainQuestSteps.forEach((step, index) => {
+    const isDone = mainQuestProgress[step.id];
+    const isCurrent = nextStepIndex === index;
+    const marker = isDone ? '[x]' : '[ ]';
+    const lineText = `${index + 1}. ${marker} ${step.label}`;
+
+    if (isDone) {
+      ctx.fillStyle = '#86efac';
+    } else if (isCurrent) {
+      ctx.fillStyle = '#fbbf24';
+    } else {
+      ctx.fillStyle = '#e2e8f0';
+    }
+
+    ctx.fillText(lineText, panelX + 12, panelY + 42 + index * 19);
+  });
+
+  const nextObjective = nextStepIndex >= 0
+    ? mainQuestSteps[nextStepIndex].label
+    : 'Tous les objectifs sont termines';
+
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '11px Arial';
+  ctx.fillText(`Prochain: ${nextObjective}`, panelX + 12, panelY + panelH - 12);
 }
 
 function drawPlayer() {
@@ -4887,10 +4980,6 @@ function tryOpenBarrier() {
 function tryOpenFinalBarrier() {
   if (finalBarrier.isOpen) return false;
   if (distanceToFinalBarrier() >= 120) return false;
-  if (!mountainBossKey.isCollected) {
-    hintMessage = 'La porte du boss est verrouillée: bats le sous-boss pour la clé';
-    return false;
-  }
   finalBarrier.isOpen = true;
   if (hasFullLegendarySet()) {
     hintMessage = 'Barriere finale ouverte: set legendaire complet, tu peux affronter Maleficus';
@@ -5195,13 +5284,15 @@ function distanceToStarterChest() {
 function updateHealthHud() {
   const ratio = player.maxHealth > 0 ? player.health / player.maxHealth : 0;
   const percent = clamp(Math.round(ratio * 100), 0, 100);
+  const shownHealth = Math.max(0, Math.round(player.health));
+  const shownMaxHealth = Math.max(0, Math.round(player.maxHealth));
 
   if (healthFill) {
     healthFill.style.width = `${percent}%`;
   }
 
   if (healthText) {
-    healthText.textContent = `${player.health} / ${player.maxHealth}`;
+    healthText.textContent = `${shownHealth} / ${shownMaxHealth}`;
   }
 }
 
@@ -5626,16 +5717,15 @@ function initSurvival() {
   survival.lastUpdate = Date.now();
   survival.hunger = 100;
   survival.thirst = 100;
-  survival.temperature = 20;
   survival.dayTime = 360;
   survival.day = 1;
   survival.poisonUntil = 0;
   survival.nextPoisonTick = 0;
-  survivalInventory.wood = 2;
-  survivalInventory.stone = 1;
-  survivalInventory.berries = 3;
+  survivalInventory.wood = 1;
+  survivalInventory.stone = 0;
+  survivalInventory.berries = 2;
   survivalInventory.poisonedBerries = 0;
-  survivalInventory.water = 1;
+  survivalInventory.water = 0;
   syncResourceInventory();
 }
 
@@ -5654,27 +5744,6 @@ function updateSurvival() {
   // Déterminer si c'est la nuit (20h - 6h)
   survival.isNight = survival.dayTime < 360 || survival.dayTime >= 1200;
   
-  // Calculer la température ambiante selon la zone et l'heure
-  let baseTemp = 20;
-  if (currentZone === 'Montagnes Brisées') baseTemp = 8;
-  else if (currentZone === 'Sanctuaire Final') baseTemp = 35;
-  else if (currentZone === 'Forêt Ancienne') baseTemp = 18;
-  
-  // La nuit fait baisser la température
-  if (survival.isNight) {
-    baseTemp -= 12;
-  }
-  
-  // Près d'un feu de camp = +15°C
-  survival.nearCampfire = isNearCampfire();
-  if (survival.nearCampfire) {
-    baseTemp += 15;
-  }
-  
-  // Transition douce de la température
-  survival.temperature += (baseTemp - survival.temperature) * 0.02;
-  survival.temperature = clamp(survival.temperature, survival.minTemp, survival.maxTemp);
-  
   // Diminution de la faim et de la soif
   survival.hunger -= survival.hungerRate * deltaSeconds;
   survival.thirst -= survival.thirstRate * deltaSeconds;
@@ -5687,12 +5756,6 @@ function updateSurvival() {
   }
   if (survival.thirst <= 0) {
     player.health -= survival.dehydrationDamage * deltaSeconds;
-  }
-  if (survival.temperature < 5) {
-    player.health -= survival.freezingDamage * deltaSeconds * (1 - survival.temperature / 5);
-  }
-  if (survival.temperature > 35) {
-    player.health -= survival.overheatDamage * deltaSeconds * ((survival.temperature - 35) / 10);
   }
 
   // Effet de poison (le Sorcier subit moins de dégâts)
@@ -5745,11 +5808,6 @@ function updateSurvivalHUD() {
   const thirstPercent = (survival.thirst / survival.maxThirst) * 100;
   if (thirstFill) thirstFill.style.width = `${thirstPercent}%`;
   if (thirstText) thirstText.textContent = Math.round(survival.thirst);
-  
-  // Température
-  const tempPercent = ((survival.temperature - survival.minTemp) / (survival.maxTemp - survival.minTemp)) * 100;
-  if (tempFill) tempFill.style.width = `${tempPercent}%`;
-  if (tempText) tempText.textContent = `${Math.round(survival.temperature)}°C`;
   
   // Jour/Nuit
   const hours = Math.floor(survival.dayTime / 60);
@@ -6178,16 +6236,16 @@ function checkEnemyCollision() {
     const dist = Math.hypot(centerX - bossCenterX, centerY - bossCenterY);
     
     if (dist < 35) {
-      player.health -= 0.5; // Dégâts au contact
+      player.health -= 0.8; // Dégâts au contact
       // Repousser le joueur
       const angle = Math.atan2(centerY - bossCenterY, centerX - bossCenterX);
-      player.x += Math.cos(angle) * 3;
-      player.y += Math.sin(angle) * 3;
+      player.x += Math.cos(angle) * 4;
+      player.y += Math.sin(angle) * 4;
     }
   }
   
   // Collision avec le sous-boss (Cerbère)
-  if (miniBossSubBoss.isUnlocked && !miniBossSubBoss.isDefeated) {
+  if (!miniBossSubBoss.isDefeated) {
     const bossCenterX = miniBossSubBoss.x + miniBossSubBoss.w / 2;
     const bossCenterY = miniBossSubBoss.y + miniBossSubBoss.h / 2;
     const dist = Math.hypot(centerX - bossCenterX, centerY - bossCenterY);
@@ -6201,7 +6259,7 @@ function checkEnemyCollision() {
   }
   
   // Collision avec le boss final (cooldown-based, knockback fort)
-  if (!finalBoss.isDefeated && currentZone === 'Sanctuaire Final') {
+  if (!finalBoss.isDefeated && finalBoss.isAwake && currentZone === 'Sanctuaire Final') {
     const now = Date.now();
     const fbcx = finalBoss.x + finalBoss.w / 2;
     const fbcy = finalBoss.y + finalBoss.h / 2;
@@ -6256,10 +6314,6 @@ function gameLoop() {
       gameOverReason = 'Tu es mort de faim...';
     } else if (survival.thirst <= 0) {
       gameOverReason = 'Tu es mort de soif...';
-    } else if (survival.temperature < 5) {
-      gameOverReason = 'Tu es mort de froid...';
-    } else if (survival.temperature > 35) {
-      gameOverReason = 'Tu es mort de chaleur...';
     } else {
       gameOverReason = 'Tu as été vaincu par les ennemis...';
     }

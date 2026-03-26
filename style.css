@@ -374,13 +374,6 @@ h1 {
   transition: width 150ms linear;
 }
 
-#temp-fill {
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(90deg, #06b6d4 0%, #22c55e 50%, #ef4444 100%);
-  transition: width 150ms linear;
-}
-
 #day-night-indicator {
   font-size: 0.85rem;
   color: #fbbf24;
