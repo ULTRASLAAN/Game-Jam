@@ -450,6 +450,7 @@ const forestChests = [
     w: 36,
     h: 26,
     isOpened: false,
+    hasBeeTrap: true,
     loot: [
       { id: 'wood', quantity: 2 },
       { id: 'stone', quantity: 1 },
@@ -753,11 +754,26 @@ const survivalInventory = {
   wood: 0,
   stone: 0,
   berries: 0,
+  poisonedBerries: 0,
   rawMeat: 0,
   cookedMeat: 0,
   herbs: 0,
   cloth: 0,
   water: 0
+};
+
+const beeSwarm = {
+  isActive: false,
+  isDefeated: false,
+  x: 0,
+  y: 0,
+  speed: 2.25,
+  orbitAngle: 0,
+  orbitRadius: 14,
+  hitRadius: 68,
+  contactDamage: 1,
+  damageCooldownMs: 450,
+  lastDamageTime: 0
 };
 
 const player = {
@@ -1166,6 +1182,7 @@ function startGame(choice, difficulty = 'normal', customName = 'Aventurier') {
   survivalInventory.wood = 2;
   survivalInventory.stone = 1;
   survivalInventory.berries = 3;
+  survivalInventory.poisonedBerries = 0;
   survivalInventory.rawMeat = 0;
   survivalInventory.cookedMeat = 0;
   survivalInventory.water = 1;
@@ -1181,6 +1198,9 @@ function startGame(choice, difficulty = 'normal', customName = 'Aventurier') {
   miniBossSubBoss.hp = miniBossSubBoss.maxHp;
   miniBossSubBoss.isUnlocked = false;
   miniBossSubBoss.isDefeated = false;
+  beeSwarm.isActive = false;
+  beeSwarm.isDefeated = false;
+  beeSwarm.lastDamageTime = 0;
   mountainHealLastTick = 0;
   dragonRiddleSolved = false;
   hintMessage = 'Objectif: explore les cerisiers';
@@ -1277,6 +1297,7 @@ function update() {
   updateMiniBosses();
   updateFinalBoss();
   updateFinalBossOrbs();
+  updateBeeSwarm();
   updateSurvival();
   checkEnemyCollision();
 
@@ -1298,7 +1319,9 @@ function update() {
 
   const nearbyForestChest = getNearbyForestChest();
 
-  if (!starterChest.isOpened) {
+  if (beeSwarm.isActive) {
+    hintMessage = '🐝 Abeilles en colère ! Attire-les vers un feu de camp allumé pour les disperser';
+  } else if (!starterChest.isOpened) {
     if (distanceToStarterChest() < 80) {
       hintMessage = 'Coffre trouvé ! Appuie sur E pour l’ouvrir';
     } else {
@@ -1388,6 +1411,7 @@ function draw() {
   drawBarrier();
   drawMedievalFoyer();
   drawSurvivalResources();
+  drawBeeSwarm();
   drawPlayer();
   drawNightOverlay();
   drawMiniMap();
@@ -5127,7 +5151,16 @@ function tryOpenForestChest() {
 
   nearbyChest.isOpened = true;
   addItemsToInventory(nearbyChest.loot);
-  hintMessage = 'Coffre de foret ouvert: provisions ajoutees';
+
+  if (nearbyChest.hasBeeTrap && !beeSwarm.isDefeated) {
+    beeSwarm.isActive = true;
+    beeSwarm.x = nearbyChest.x + nearbyChest.w / 2;
+    beeSwarm.y = nearbyChest.y + nearbyChest.h / 2;
+    beeSwarm.lastDamageTime = 0;
+    hintMessage = '🐝 Piège ! Des abeilles t attaquent. Attire-les vers un feu de camp allumé';
+  } else {
+    hintMessage = 'Coffre de foret ouvert: provisions ajoutees';
+  }
   return true;
 }
 
@@ -5472,7 +5505,12 @@ function useInventoryItem(itemId) {
     }
 
     survivalInventory.berries -= 1;
-    const berryEffect = applyForestBerryEffect();
+    const atePoisonedBerry = survivalInventory.poisonedBerries > 0;
+    if (atePoisonedBerry) {
+      survivalInventory.poisonedBerries -= 1;
+    }
+
+    const berryEffect = applyForestBerryEffect(atePoisonedBerry);
     syncResourceInventory(false);
 
     if (berryEffect.randomHungerLoss > 0) {
@@ -5596,6 +5634,7 @@ function initSurvival() {
   survivalInventory.wood = 2;
   survivalInventory.stone = 1;
   survivalInventory.berries = 3;
+  survivalInventory.poisonedBerries = 0;
   survivalInventory.water = 1;
   syncResourceInventory();
 }
@@ -5723,7 +5762,7 @@ function updateSurvivalHUD() {
   }
 }
 
-function applyForestBerryEffect() {
+function applyForestBerryEffect(forcedPoison = false) {
   const now = Date.now();
   const baseHungerRestore = 25;
   survival.hunger = clamp(survival.hunger + baseHungerRestore, 0, survival.maxHunger);
@@ -5731,17 +5770,15 @@ function applyForestBerryEffect() {
   let randomHungerLoss = 0;
   let gotPoisoned = false;
 
-  // En forêt, certaines baies sont mauvaises: elles peuvent retirer de la faim.
-  if (currentZone === 'Forêt Ancienne' && Math.random() < 0.35) {
+  // Certaines baies ramassées en forêt sont empoisonnées.
+  if (forcedPoison) {
     randomHungerLoss = Math.floor(Math.random() * 13) + 8; // 8..20
     survival.hunger = clamp(survival.hunger - randomHungerLoss, 0, survival.maxHunger);
 
-    gotPoisoned = Math.random() < 0.6;
-    if (gotPoisoned) {
-      const poisonDurationMs = player.className === 'Sorcier' ? 4000 : 8000;
-      survival.poisonUntil = Math.max(survival.poisonUntil, now + poisonDurationMs);
-      survival.nextPoisonTick = now + 800;
-    }
+    gotPoisoned = true;
+    const poisonDurationMs = player.className === 'Sorcier' ? 4000 : 8000;
+    survival.poisonUntil = Math.max(survival.poisonUntil, now + poisonDurationMs);
+    survival.nextPoisonTick = now + 800;
   }
 
   return {
@@ -5749,6 +5786,43 @@ function applyForestBerryEffect() {
     randomHungerLoss,
     gotPoisoned
   };
+}
+
+function updateBeeSwarm() {
+  if (!beeSwarm.isActive) {
+    return;
+  }
+
+  if (isBeeSwarmNearActiveFire()) {
+    beeSwarm.isActive = false;
+    beeSwarm.isDefeated = true;
+    hintMessage = '🔥 Les abeilles fuient la fumee du feu de camp. Danger passe';
+    return;
+  }
+
+  const centerX = player.x + player.width / 2;
+  const centerY = player.y + player.height / 2;
+  const dx = centerX - beeSwarm.x;
+  const dy = centerY - beeSwarm.y;
+  const dist = Math.hypot(dx, dy) || 1;
+
+  beeSwarm.x += (dx / dist) * beeSwarm.speed;
+  beeSwarm.y += (dy / dist) * beeSwarm.speed;
+  beeSwarm.orbitAngle += 0.18;
+}
+
+function isBeeSwarmNearActiveFire() {
+  if (medievalFoyer.woodCount > 0) {
+    const foyerDist = Math.hypot(beeSwarm.x - medievalFoyer.x, beeSwarm.y - medievalFoyer.y);
+    if (foyerDist < 92) {
+      return true;
+    }
+  }
+
+  return survivalResources.campfires.some((fire) => {
+    const dist = Math.hypot(beeSwarm.x - fire.x, beeSwarm.y - fire.y);
+    return dist < 84;
+  });
 }
 
 function isNearCampfire() {
@@ -5772,9 +5846,18 @@ function tryCollectResource() {
     if (dist < 40) {
       berry.collected = true;
       berry.respawnTime = Date.now() + 30000;
+
+      const isForestBerry = berry.x >= 16 * TILE && berry.x < 32 * TILE;
+      const isPoisonedBerry = isForestBerry && Math.random() < 0.4;
+
       survivalInventory.berries++;
+      if (isPoisonedBerry) {
+        survivalInventory.poisonedBerries++;
+      }
       syncResourceInventory();
-      hintMessage = `Baies collectées (+1) - Total: ${survivalInventory.berries}`;
+      hintMessage = isPoisonedBerry
+        ? `Baies collectees (+1) - Total: ${survivalInventory.berries} (une baie semble empoisonnee...)`
+        : `Baies collectees (+1) - Total: ${survivalInventory.berries}`;
       return true;
     }
   }
@@ -5959,6 +6042,47 @@ function drawSurvivalResources() {
   });
 }
 
+function drawBeeSwarm() {
+  if (!beeSwarm.isActive) {
+    return;
+  }
+
+  const centerX = beeSwarm.x - camera.x;
+  const centerY = beeSwarm.y - camera.y;
+  const t = Date.now() * 0.015;
+
+  ctx.save();
+
+  ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, beeSwarm.hitRadius - 16, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let i = 0; i < 14; i++) {
+    const angle = beeSwarm.orbitAngle + (i / 14) * Math.PI * 2;
+    const wobble = Math.sin(t + i) * 4;
+    const r = beeSwarm.orbitRadius + 10 + wobble;
+    const bx = centerX + Math.cos(angle) * r;
+    const by = centerY + Math.sin(angle) * r * 0.7;
+
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.arc(bx, by, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#111827';
+    ctx.beginPath();
+    ctx.arc(bx + 1, by, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#fef3c7';
+  ctx.font = 'bold 12px Arial';
+  ctx.fillText('Essaim', centerX - 20, centerY - 24);
+
+  ctx.restore();
+}
+
 function drawNightOverlay() {
   if (!survival.isNight) return;
   
@@ -6034,6 +6158,16 @@ function drawNightOverlay() {
 function checkEnemyCollision() {
   const centerX = player.x + player.width / 2;
   const centerY = player.y + player.height / 2;
+
+  // Collision avec l'essaim d'abeilles
+  if (beeSwarm.isActive) {
+    const now = Date.now();
+    const dist = Math.hypot(centerX - beeSwarm.x, centerY - beeSwarm.y);
+    if (dist < beeSwarm.hitRadius && now - beeSwarm.lastDamageTime >= beeSwarm.damageCooldownMs) {
+      player.health -= beeSwarm.contactDamage;
+      beeSwarm.lastDamageTime = now;
+    }
+  }
   
   // Collision avec les mini-boss
   for (const boss of miniBosses) {
